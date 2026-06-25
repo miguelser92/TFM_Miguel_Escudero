@@ -1,0 +1,261 @@
+"""
+train.py
+========
+Bucle de entrenamiento de la imputación SiPM con generación on-the-fly.
+
+Estrategia de datos:
+  - Entrena SOLO con archivos Good (los 61 canales sanos).
+  - Rotación de archivos: un .dat distinto por época (los datos no caben en RAM).
+  - Validación con un conjunto FIJO de archivos reservados (para que val sea comparable
+    entre épocas).
+
+Métricas: pérdida Huber sobre los 61 canales + MAE en el canal imputado, reportado
+por separado para muestras modified y non-modified (evaluación estratificada).
+
+Guarda el mejor modelo en .pth para reutilizarlo después (ver imputation_eval.py).
+
+Uso:
+    conda activate tfm
+    python train.py
+
+Ajusta la sección CONFIG según necesites.
+
+Autor: Miguel Escudero (TFM)
+"""
+
+import sys
+import json
+import time
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from pathlib import Path
+
+import matplotlib
+matplotlib.use('Agg')   # backend sin ventana (solo guardamos figuras a archivo)
+import matplotlib.pyplot as plt
+
+# Consola de Windows: forzar UTF-8 para poder imprimir ✓ sin UnicodeEncodeError
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
+from dataset import SiPMImputationDataset, load_dat_to_dense, N_ACTIVE
+from model import get_model, count_parameters
+
+
+# ════════════════════════════════════════════════════════════
+#  CONFIG — toca esto
+# ════════════════════════════════════════════════════════════
+
+GOOD_DIR    = r'E:\Datos TFM\Good\Good'
+RUNS_BASE   = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
+
+# Arquitectura a entrenar: 'deepmlp' (baseline) | 'resmlp' | 'hexcnn'
+MODEL_NAME    = 'deepmlp'
+MODEL_KWARGS  = {}          # {} = usa los defaults de cada modelo; o p.ej. dict(hidden=64)
+
+N_EPOCHS      = 40
+BATCH_SIZE    = 512
+LR            = 1e-3
+WEIGHT_DECAY  = 1e-4
+PATIENCE      = 8            # early stopping
+MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
+N_VAL_FILES   = 2           # archivos reservados para validación
+HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
+
+# Carpeta de salida separada por arquitectura (no se pisan los checkpoints)
+OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}')
+
+
+# ════════════════════════════════════════════════════════════
+#  ENTRENAMIENTO
+# ════════════════════════════════════════════════════════════
+
+def evaluate(model, loader, loss_fn, device):
+    """
+    Evalúa el modelo en un loader y devuelve (loss, mae_modified, mae_nonmod).
+
+    El MAE se calcula SOLO sobre el canal imputado, separando las dos clases:
+      - modified:     mide la capacidad de imputar de verdad
+      - non-modified: mide la tasa de falsa corrección (debería ser ~0)
+    """
+    model.eval()
+    total_loss = 0.0
+    n_total    = 0
+    # acumuladores de error absoluto en el canal imputado por clase
+    err_mod, n_mod = 0.0, 0
+    err_non, n_non = 0.0, 0
+
+    with torch.no_grad():   # sin grafo de gradientes: más rápido y menos memoria
+        for x_in, target, ch, is_mod in loader:
+            x_in   = x_in.to(device)
+            target = target.to(device)
+            ch     = ch.to(device)
+            is_mod = is_mod.to(device)
+
+            out  = model(x_in)                       # (B, 61)
+            loss = loss_fn(out, target)              # Huber sobre los 61 canales
+            bs   = len(target)
+            total_loss += loss.item() * bs
+            n_total    += bs
+
+            # Error absoluto en el canal imputado de cada muestra
+            # out[arange(B), ch] selecciona la predicción del canal apagado de cada fila
+            rows = torch.arange(bs, device=device)
+            pred_ch = out[rows, ch]
+            true_ch = target[rows, ch]
+            abs_err = (pred_ch - true_ch).abs()
+
+            m = is_mod.bool()
+            err_mod += abs_err[m].sum().item();  n_mod += m.sum().item()
+            err_non += abs_err[~m].sum().item(); n_non += (~m).sum().item()
+
+    loss     = total_loss / max(n_total, 1)
+    mae_mod  = err_mod / max(n_mod, 1)
+    mae_non  = err_non / max(n_non, 1)
+    return loss, mae_mod, mae_non
+
+
+def main():
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    out_dir = Path(OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Reparto de archivos: val fijo + train rotatorio ──────
+    good_files = sorted(Path(GOOD_DIR).glob('datas*.dat'))
+    assert len(good_files) > N_VAL_FILES, "No hay suficientes archivos Good"
+    val_files   = good_files[:N_VAL_FILES]
+    train_files = good_files[N_VAL_FILES:]
+    print(f"Dispositivo: {device}")
+    print(f"Archivos Good: {len(good_files)}  (val: {len(val_files)}, train rota sobre {len(train_files)})")
+
+    # ── Validación: conjunto FIJO (se carga una vez) ─────────
+    print("Cargando archivos de validación...")
+    X_val = np.concatenate(
+        [load_dat_to_dense(f, max_events=MAX_EVENTS // N_VAL_FILES) for f in val_files],
+        axis=0,
+    )
+    val_ds = SiPMImputationDataset(X_val, seed=12345)   # seed fijo: val reproducible
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE * 2, shuffle=False,
+                            num_workers=0, pin_memory=True)   # num_workers=0 obligatorio en Windows
+    print(f"  Val: {len(X_val):,} eventos")
+
+    # ── Modelo, optimizador, scheduler, loss ─────────────────
+    model = get_model(MODEL_NAME, **MODEL_KWARGS).to(device)
+    print(f"Modelo: {MODEL_NAME}  |  parámetros: {count_parameters(model):,}")
+
+    optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    scheduler = CosineAnnealingLR(optimizer, T_max=N_EPOCHS, eta_min=LR / 100)
+    loss_fn   = nn.HuberLoss(delta=HUBER_DELTA)
+
+    history = {'train_loss': [], 'val_loss': [], 'val_mae_mod': [], 'val_mae_non': []}
+    best_val = float('inf')
+    epochs_no_improve = 0
+    ckpt_path = out_dir / 'best_model.pth'
+
+    print(f"\n{'='*64}\nEntrenando {N_EPOCHS} épocas (rotación de archivos)\n{'='*64}")
+
+    for epoch in range(1, N_EPOCHS + 1):
+        t0 = time.time()
+
+        # Archivo de esta época (round-robin sobre los de train)
+        f_train = train_files[(epoch - 1) % len(train_files)]
+        X_train = load_dat_to_dense(f_train, max_events=MAX_EVENTS)
+        # seed = epoch → el masking aleatorio cambia en cada época
+        train_ds = SiPMImputationDataset(X_train, seed=epoch)
+        train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+                                  num_workers=0, pin_memory=True)
+
+        # ── Una época de entrenamiento ───────────────────────
+        model.train()
+        run_loss, n_seen = 0.0, 0
+        for x_in, target, ch, is_mod in train_loader:
+            x_in   = x_in.to(device)
+            target = target.to(device)
+
+            optimizer.zero_grad()
+            out  = model(x_in)
+            loss = loss_fn(out, target)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # evita exploding gradients
+            optimizer.step()
+
+            run_loss += loss.item() * len(target)
+            n_seen   += len(target)
+
+        scheduler.step()
+        train_loss = run_loss / max(n_seen, 1)
+
+        # ── Validación ───────────────────────────────────────
+        val_loss, mae_mod, mae_non = evaluate(model, val_loader, loss_fn, device)
+
+        history['train_loss'].append(train_loss)
+        history['val_loss'].append(val_loss)
+        history['val_mae_mod'].append(mae_mod)
+        history['val_mae_non'].append(mae_non)
+
+        flag = ''
+        if val_loss < best_val:
+            best_val = val_loss
+            epochs_no_improve = 0
+            # Guardamos pesos + metadatos para poder recargar el modelo después
+            torch.save({
+                'model_state':  model.state_dict(),
+                'model_kwargs': MODEL_KWARGS,
+                'arch':         MODEL_NAME,
+                'epoch':        epoch,
+                'val_loss':     val_loss,
+                'val_mae_mod':  mae_mod,
+                'val_mae_non':  mae_non,
+            }, ckpt_path)
+            flag = '  ✓ best'
+        else:
+            epochs_no_improve += 1
+
+        print(f"Epoch {epoch:3d}/{N_EPOCHS} | "
+              f"train={train_loss:.4f} val={val_loss:.4f} | "
+              f"MAE(mod)={mae_mod:.4f} MAE(non)={mae_non:.4f} | "
+              f"{f_train.name} | {time.time()-t0:.1f}s{flag}")
+
+        if epochs_no_improve >= PATIENCE:
+            print(f"\nEarly stopping en epoch {epoch} (sin mejora en {PATIENCE} épocas)")
+            break
+
+    # ── Guardar historial + curvas ───────────────────────────
+    with open(out_dir / 'history.json', 'w') as f:
+        json.dump(history, f, indent=2)
+    plot_curves(history, out_dir / 'training_curves.png')
+
+    print(f"\n✓ Entrenamiento terminado. Mejor val_loss: {best_val:.4f}")
+    print(f"  Checkpoint: {ckpt_path}")
+
+
+def plot_curves(history: dict, save_path):
+    """Dibuja las curvas de entrenamiento (etiquetas en inglés)."""
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    axes[0].plot(history['train_loss'], label='Train', color='steelblue')
+    axes[0].plot(history['val_loss'],   label='Validation', color='coral')
+    axes[0].set_title('Loss (Huber)')
+    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Loss')
+    axes[0].legend(); axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(history['val_mae_mod'], label='Modified',     color='seagreen')
+    axes[1].plot(history['val_mae_non'], label='Non-modified', color='gray')
+    axes[1].set_title('Imputed-channel MAE (validation)')
+    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('MAE')
+    axes[1].legend(); axes[1].grid(True, alpha=0.3)
+
+    plt.suptitle('Training Curves', fontweight='bold')
+    plt.tight_layout()
+    fig.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+
+if __name__ == '__main__':
+    main()

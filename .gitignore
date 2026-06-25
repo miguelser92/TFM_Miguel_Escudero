@@ -1,0 +1,25 @@
+# === Datos (en disco externo E:, nunca en el repo) ===
+*.dat
+*.tsv
+
+# === Artefactos de Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# === Salidas de entrenamiento / evaluación (reproducibles) ===
+runs/
+*.pth
+
+# === PDFs / PNG de informes (salidas, no código) ===
+reports/*.pdf
+reports/*.png
+
+# === Código antiguo (superseded) ===
+Old Code/
+
+# === Sistema ===
+.DS_Store
+Thumbs.db
+desktop.ini
