@@ -23,6 +23,8 @@ Autor: Miguel Escudero (TFM)
 """
 
 import sys
+import json
+import datetime
 import numpy as np
 import torch
 from pathlib import Path
@@ -38,7 +40,7 @@ except Exception:
     pass
 
 from dataset import (
-    load_dat_to_dense, load_positions,
+    load_dat_to_dense, load_positions, get_file_split,
     N_ACTIVE, ICH_TO_IDX, IDX_TO_ICH,
 )
 from model import get_model
@@ -48,19 +50,23 @@ from model import get_model
 #  CONFIG
 # ════════════════════════════════════════════════════════════
 
-CKPT_PATH  = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs\imputer_mlp\best_model.pth'
 PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
-OUT_DIR    = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs\imputer_mlp\eval'
 
-# Demo Good: imputar un canal con ground truth y medir (un archivo, para las figuras)
+# Solo cambias RUN_NAME (la carpeta de la arquitectura). El checkpoint y la carpeta
+# eval/ se derivan solos → no hay que tocar rutas a mano y eval va dentro de cada run.
+RUNS_BASE  = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
+RUN_NAME   = 'imputer_hexcnn-06-23'
+RUN_DIR    = Path(RUNS_BASE) / RUN_NAME
+CKPT_PATH  = RUN_DIR / 'best_model.pth'
+OUT_DIR    = RUN_DIR / 'eval'
+
+# El split (train/val/test) sale de dataset.get_file_split → el evaluador usa los
+# MISMOS archivos de test que train.py reservó. La demo Good se hace sobre test_files[0].
 GOOD_DIR    = r'E:\Datos TFM\Good\Good'
-GOOD_FILE   = r'E:\Datos TFM\Good\Good\datas002.dat'
 GOOD_ICH    = 30          # canal físico (Ich) a apagar/imputar en la demo Good
-MAX_EVENTS  = 400_000
+MAX_EVENTS  = 400_000     # eventos para la demo Good de un solo archivo
 
-# Métricas agregadas sobre varios archivos HELD-OUT (cola de la lista = no vistos en train)
-N_TEST_FILES    = 4
-TEST_MAX_EVENTS = 200_000  # eventos por archivo de test (más bajo: son varios)
+TEST_MAX_EVENTS = 200_000  # eventos por archivo de test (son varios, agregados)
 
 # Demo Bad (opcional): imputar el canal muerto real de un archivo Bad
 BAD_FILE    = r'E:\Datos TFM\Bad\Bad\datas016.dat'
@@ -285,6 +291,7 @@ def plot_error_diagnostics(true_raw, pred_raw, ich, suptitle, save_path):
     plt.close(fig)
     print(f"  Guardado: {save_path}")
     print(f"  Residuo: MAE={mae:.3f}  RMSE={rmse:.3f}  bias={bias:.3f}  (ADC, modified)")
+    return {'mae': mae, 'rmse': rmse, 'bias': bias, 'n_modified': int(len(t))}
 
 
 # ════════════════════════════════════════════════════════════
@@ -313,8 +320,12 @@ def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, 
     is_mod = X_orig[:, ch_idx] > 0
     dR_deg = np.sqrt((dx - ox) ** 2 + (dy - oy) ** 2)[is_mod]
     dR_imp = np.sqrt((ix - ox) ** 2 + (iy - oy) ** 2)[is_mod]
-    med_deg, med_imp = float(np.median(dR_deg)), float(np.median(dR_imp))
-    recovery = (med_deg - med_imp) / med_deg * 100 if med_deg > 0 else 0.0
+    med_deg,  med_imp  = float(np.median(dR_deg)),       float(np.median(dR_imp))
+    mean_deg, mean_imp = float(dR_deg.mean()),           float(dR_imp.mean())
+    p90_deg,  p90_imp  = float(np.percentile(dR_deg, 90)), float(np.percentile(dR_imp, 90))
+    # Recuperación: con la mediana (comprime) y con el p90 (eventos donde el canal domina)
+    recovery     = (med_deg - med_imp) / med_deg * 100 if med_deg > 0 else 0.0
+    recovery_p90 = (p90_deg - p90_imp) / p90_deg * 100 if p90_deg > 0 else 0.0
 
     # Histogramas 2D en una rejilla común (mismo grid para poder restar)
     rng = [[x_sipm.min() - 2, x_sipm.max() + 2], [y_sipm.min() - 2, y_sipm.max() + 2]]
@@ -333,13 +344,13 @@ def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, 
     ax = axes[0]
     hi = float(np.percentile(dR_deg, 99))
     ax.hist(dR_deg, bins=100, range=(0, hi), color='coral', alpha=0.65,
-            label=f'Degraded (median {med_deg:.3f} mm)')
+            label=f'Degraded (median {med_deg:.3f}, p90 {p90_deg:.3f} mm)')
     ax.hist(dR_imp, bins=100, range=(0, hi), color='steelblue', alpha=0.65,
-            label=f'Imputed (median {med_imp:.3f} mm)')
+            label=f'Imputed (median {med_imp:.3f}, p90 {p90_imp:.3f} mm)')
     ax.axvline(med_deg, color='coral', ls='--', lw=1.5)
     ax.axvline(med_imp, color='steelblue', ls='--', lw=1.5)
     ax.set_title(f"Position shift vs original (Ich={IDX_TO_ICH[ch_idx]}, modified)\n"
-                 f"Recovery: {recovery:.0f}%")
+                 f"Recovery: median {recovery:.0f}%  ·  p90 {recovery_p90:.0f}%")
     ax.set_xlabel('Position shift ΔR [mm]'); ax.set_ylabel('Counts')
     ax.legend(); ax.grid(True, alpha=0.3)
 
@@ -362,8 +373,16 @@ def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, 
     fig.savefig(save_path, dpi=200, bbox_inches='tight')
     plt.close(fig)
     print(f"  Guardado: {save_path}")
-    print(f"  ΔR mediana: degradado={med_deg:.3f} mm  imputado={med_imp:.3f} mm  "
-          f"recuperación={recovery:.0f}%")
+    print(f"  ΔR (imputado)  mediana={med_imp:.4f}  media={mean_imp:.4f}  p90={p90_imp:.4f} mm")
+    print(f"  ΔR (degradado) mediana={med_deg:.4f}  media={mean_deg:.4f}  p90={p90_deg:.4f} mm")
+    print(f"  recuperación: mediana={recovery:.0f}%  ·  p90={recovery_p90:.0f}%")
+    return {
+        'dR_imp':        {'median': med_imp,  'mean': mean_imp,  'p90': p90_imp},
+        'dR_deg':        {'median': med_deg,  'mean': mean_deg,  'p90': p90_deg},
+        'recovery_median_pct': recovery,
+        'recovery_p90_pct':    recovery_p90,
+        'n_modified':    int(is_mod.sum()),
+    }
 
 
 # ════════════════════════════════════════════════════════════
@@ -383,6 +402,7 @@ def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events)
     """
     true_all, pred_all   = [], []
     dR_deg_all, dR_imp_all = [], []
+    per_file = []   # métricas por archivo (para guardar en el JSON)
 
     print(f"\n=== AGREGADO sobre {len(files)} archivos held-out (Ich={IDX_TO_ICH[ch_idx]}) ===")
     for f in files:
@@ -400,8 +420,9 @@ def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events)
         dR_imp_all.append(np.sqrt((ix - ox)**2 + (iy - oy)**2)[is_mod])
 
         rm, pm = true[is_mod], pred[is_mod]
-        print(f"  {f.name}: MAE_mod={np.abs(pm-rm).mean():.3f}  "
-              f"bias={(pm-rm).mean():+.3f}  (n_mod={is_mod.sum():,})")
+        fmae, fbias = float(np.abs(pm - rm).mean()), float((pm - rm).mean())
+        per_file.append({'file': f.name, 'mae_mod': fmae, 'bias': fbias, 'n_mod': int(is_mod.sum())})
+        print(f"  {f.name}: MAE_mod={fmae:.3f}  bias={fbias:+.3f}  (n_mod={is_mod.sum():,})")
 
     true_all = np.concatenate(true_all)
     pred_all = np.concatenate(pred_all)
@@ -415,33 +436,56 @@ def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events)
     bias = float((pm - rm).mean())
     print(f"  -- POOLED: MAE_mod={mae:.3f}  RMSE={rmse:.3f}  bias={bias:+.3f}  "
           f"(N_mod={is_mod.sum():,})")
-    print(f"  -- POOLED ΔR mediana: degradado={np.median(dR_deg):.3f} mm  "
-          f"imputado={np.median(dR_imp):.3f} mm")
+    print(f"  -- POOLED ΔR imputado : mediana={np.median(dR_imp):.4f}  "
+          f"media={dR_imp.mean():.4f}  p90={np.percentile(dR_imp, 90):.4f} mm")
+    print(f"  -- POOLED ΔR degradado: mediana={np.median(dR_deg):.4f}  "
+          f"media={dR_deg.mean():.4f}  p90={np.percentile(dR_deg, 90):.4f} mm")
 
-    return true_all, pred_all
+    metrics = {
+        'n_files':  len(files),
+        'per_file': per_file,
+        'pooled': {
+            'mae_mod': mae, 'rmse': rmse, 'bias': bias, 'n_mod': int(is_mod.sum()),
+            'dR_imp': {'median': float(np.median(dR_imp)), 'mean': float(dR_imp.mean()),
+                       'p90': float(np.percentile(dR_imp, 90))},
+            'dR_deg': {'median': float(np.median(dR_deg)), 'mean': float(dR_deg.mean()),
+                       'p90': float(np.percentile(dR_deg, 90))},
+        },
+    }
+    return true_all, pred_all, metrics
 
 
 # ════════════════════════════════════════════════════════════
 #  MAIN
 # ════════════════════════════════════════════════════════════
 
-def main():
+def run_eval(ckpt_path, out_dir):
+    """
+    Evalúa un checkpoint: genera las figuras (PDF) Y guarda todas las métricas en
+    eval_metrics.json (para no perder los números del run en la consola).
+    """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    out_dir = Path(OUT_DIR)
+    out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    model = load_model(CKPT_PATH, device)
+    model = load_model(ckpt_path, device)
+    # Metadatos del checkpoint (arch, epoch, métricas de validación) para el JSON
+    ckpt_meta = torch.load(ckpt_path, map_location='cpu', weights_only=False)
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
 
+    # Split limpio (MISMA fuente que train.py): test held-out + demo Good sobre un test file
+    _, _, test_files = get_file_split(GOOD_DIR)
+    good_demo = test_files[0]   # archivo de TEST para la demo individual (held-out de verdad)
+
     # ── Demo Good: ground truth disponible ───────────────────
-    print(f"\n=== GOOD: imputar Ich={GOOD_ICH} en {Path(GOOD_FILE).name} ===")
+    print(f"\n=== GOOD: imputar Ich={GOOD_ICH} en {Path(good_demo).name} (test) ===")
     ch = ICH_TO_IDX[GOOD_ICH]   # Ich físico → índice denso
-    X_good = load_dat_to_dense(GOOD_FILE, max_events=MAX_EVENTS)
+    X_good = load_dat_to_dense(good_demo, max_events=MAX_EVENTS)
     X_imp, pred = impute_channel(model, X_good, ch, device)
 
-    m = stratified_metrics(X_good, pred, ch)
-    print(f"  MAE modified     = {m['mae_modified']:.4f}  (n={m['n_modified']:,})")
-    print(f"  MAE non-modified = {m['mae_non_modified']:.4f}  (n={m['n_non_modified']:,})")
+    strat = stratified_metrics(X_good, pred, ch)
+    print(f"  MAE modified     = {strat['mae_modified']:.4f}  (n={strat['n_modified']:,})")
+    print(f"  MAE non-modified = {strat['mae_non_modified']:.4f}  (n={strat['n_non_modified']:,})")
 
     # Flood map: original vs canal apagado vs imputado (con overlay del canal)
     X_deg = X_good.copy(); X_deg[:, ch] = 0.0
@@ -451,34 +495,30 @@ def main():
          f"Degraded (Ich={GOOD_ICH} off)",
          f"Imputed (Ich={GOOD_ICH} recovered)"],
         x_sipm, y_sipm,
-        suptitle=f"Good file {Path(GOOD_FILE).stem} — channel Ich={GOOD_ICH}",
+        suptitle=f"Good file {Path(good_demo).stem} — channel Ich={GOOD_ICH}",
         save_path=str(out_dir / f'flood_good_ich{GOOD_ICH}.pdf'),
         highlight_chs=ch,
     )
 
-    # Histograma de error GT vs inferencia (solo Good, hay ground truth)
-    plot_error_diagnostics(
+    err_single = plot_error_diagnostics(
         X_good[:, ch], pred, GOOD_ICH,
-        suptitle=f"Good file {Path(GOOD_FILE).stem} — imputation error Ich={GOOD_ICH}",
+        suptitle=f"Good file {Path(good_demo).stem} — imputation error Ich={GOOD_ICH}",
         save_path=str(out_dir / f'error_good_ich{GOOD_ICH}.pdf'),
     )
 
-    # Error a nivel de flood map / posición (ΔR + mapas de diferencia)
-    plot_position_error(
+    pos = plot_position_error(
         X_good, X_deg, X_imp, ch, x_sipm, y_sipm,
-        suptitle=f"Good file {Path(GOOD_FILE).stem} — flood-map / position error Ich={GOOD_ICH}",
+        suptitle=f"Good file {Path(good_demo).stem} — flood-map / position error Ich={GOOD_ICH}",
         save_path=str(out_dir / f'position_error_good_ich{GOOD_ICH}.pdf'),
     )
 
-    # ── Métricas agregadas sobre varios archivos held-out ────
-    good_files = sorted(Path(GOOD_DIR).glob('datas*.dat'))
-    test_files = good_files[-N_TEST_FILES:]   # cola de la lista: muy probablemente no vistos en train
-    true_all, pred_all = evaluate_multifile(
+    # ── Métricas agregadas sobre los archivos de TEST (held-out) ────
+    true_all, pred_all, pooled = evaluate_multifile(
         model, test_files, ch, device, x_sipm, y_sipm, TEST_MAX_EVENTS,
     )
-    plot_error_diagnostics(
+    err_agg = plot_error_diagnostics(
         true_all, pred_all, GOOD_ICH,
-        suptitle=f"Aggregated over {N_TEST_FILES} held-out files — imputation error Ich={GOOD_ICH}",
+        suptitle=f"Aggregated over {len(test_files)} held-out test files — imputation error Ich={GOOD_ICH}",
         save_path=str(out_dir / f'error_aggregated_ich{GOOD_ICH}.pdf'),
     )
 
@@ -498,7 +538,55 @@ def main():
             highlight_chs=chb,
         )
 
-    print(f"\n✓ Evaluación terminada. Figuras en: {out_dir}")
+    # ── Persistir TODAS las métricas a JSON ──────────────────
+    metrics = {
+        'timestamp':    datetime.datetime.now().isoformat(timespec='seconds'),
+        'checkpoint':   str(ckpt_path),
+        'arch':         ckpt_meta.get('arch'),
+        'train_epoch':  ckpt_meta.get('epoch'),
+        'val_loss':     ckpt_meta.get('val_loss'),
+        'val_mae_mod':  ckpt_meta.get('val_mae_mod'),
+        'channel_ich':  GOOD_ICH,
+        'good_file':    Path(good_demo).name,
+        'test_files':   [f.name for f in test_files],
+        'good_single_file': {
+            'mae_modified':     strat['mae_modified'],
+            'mae_non_modified': strat['mae_non_modified'],
+            'n_modified':       strat['n_modified'],
+            'residual':         err_single,   # mae, rmse, bias, n
+            'position':         pos,          # ΔR mediana/media/p90 + recuperación
+        },
+        'aggregated_heldout': {
+            'residual': err_agg,
+            **pooled,                          # per_file + pooled (con ΔR media/p90)
+        },
+    }
+    json_path = out_dir / 'eval_metrics.json'
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
+
+    print(f"\n✓ Evaluación terminada. Figuras y métricas en: {out_dir}")
+    print(f"  Métricas: {json_path}")
+    return metrics
+
+
+def main():
+    # Check tontotorrón: si el checkpoint no existe, avisa claro y lista las carpetas
+    # disponibles en vez de petar con un error críptico a mitad del run.
+    if not Path(CKPT_PATH).exists():
+        print(f"ERROR: no encuentro el checkpoint:\n  {CKPT_PATH}")
+        runs = sorted(p.name for p in Path(RUNS_BASE).glob('imputer_*') if p.is_dir())
+        if runs:
+            print(f"Carpetas de runs disponibles en {RUNS_BASE} (ajusta RUN_NAME):")
+            for r in runs:
+                tiene = (Path(RUNS_BASE) / r / 'best_model.pth').exists()
+                print(f"  - {r}{'' if tiene else '   (sin best_model.pth)'}")
+        else:
+            print(f"No hay ninguna carpeta 'imputer_*' en {RUNS_BASE}. ¿Has entrenado ya?")
+        sys.exit(1)
+
+    print(f"Evaluando run: {RUN_NAME}")
+    run_eval(CKPT_PATH, OUT_DIR)
 
 
 if __name__ == '__main__':

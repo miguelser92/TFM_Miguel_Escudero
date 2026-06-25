@@ -44,7 +44,7 @@ try:
 except Exception:
     pass
 
-from dataset import SiPMImputationDataset, load_dat_to_dense, N_ACTIVE
+from dataset import SiPMImputationDataset, load_dat_to_dense, get_file_split, N_ACTIVE
 from model import get_model, count_parameters
 
 
@@ -65,8 +65,17 @@ LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
 PATIENCE      = 8            # early stopping
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
-N_VAL_FILES   = 2           # archivos reservados para validación
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
+
+# Split limpio (fuente única en dataset.get_file_split): train / val / test disjuntos
+N_VAL_FILES   = 5
+N_TEST_FILES  = 5           # reservado: NUNCA se toca (ni train ni validación)
+SPLIT_SEED    = 42
+VAL_MASK_SEED = 12345       # semilla fija de las máscaras de validación (idénticas cada época)
+
+# Weights & Biases (logging al dashboard web). USE_WANDB=False para entrenar sin logging.
+USE_WANDB     = True
+WANDB_PROJECT = 'TFM-SiPM-imputation'
 
 # Carpeta de salida separada por arquitectura (no se pisan los checkpoints)
 OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}')
@@ -126,28 +135,50 @@ def main():
     out_dir = Path(OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Reparto de archivos: val fijo + train rotatorio ──────
-    good_files = sorted(Path(GOOD_DIR).glob('datas*.dat'))
-    assert len(good_files) > N_VAL_FILES, "No hay suficientes archivos Good"
-    val_files   = good_files[:N_VAL_FILES]
-    train_files = good_files[N_VAL_FILES:]
+    # ── Split limpio train / val / test (fuente única) ───────
+    # El test se reserva y NO se toca aquí (ni para entrenar ni para validar).
+    train_files, val_files, test_files = get_file_split(
+        GOOD_DIR, n_val=N_VAL_FILES, n_test=N_TEST_FILES, seed=SPLIT_SEED,
+    )
     print(f"Dispositivo: {device}")
-    print(f"Archivos Good: {len(good_files)}  (val: {len(val_files)}, train rota sobre {len(train_files)})")
+    print(f"Split: train={len(train_files)}  val={len(val_files)}  test={len(test_files)} (test reservado)")
+    print(f"  val:  {[f.name for f in val_files]}")
+    print(f"  test: {[f.name for f in test_files]}")
 
     # ── Validación: conjunto FIJO (se carga una vez) ─────────
     print("Cargando archivos de validación...")
     X_val = np.concatenate(
-        [load_dat_to_dense(f, max_events=MAX_EVENTS // N_VAL_FILES) for f in val_files],
+        [load_dat_to_dense(f, max_events=MAX_EVENTS // len(val_files)) for f in val_files],
         axis=0,
     )
-    val_ds = SiPMImputationDataset(X_val, seed=12345)   # seed fijo: val reproducible
+    val_ds = SiPMImputationDataset(X_val, seed=VAL_MASK_SEED)   # seed fijo: val reproducible
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE * 2, shuffle=False,
                             num_workers=0, pin_memory=True)   # num_workers=0 obligatorio en Windows
     print(f"  Val: {len(X_val):,} eventos")
 
     # ── Modelo, optimizador, scheduler, loss ─────────────────
     model = get_model(MODEL_NAME, **MODEL_KWARGS).to(device)
-    print(f"Modelo: {MODEL_NAME}  |  parámetros: {count_parameters(model):,}")
+    n_params = count_parameters(model)
+    print(f"Modelo: {MODEL_NAME}  |  parámetros: {n_params:,}")
+
+    # ── Weights & Biases (logging al dashboard) ──────────────
+    wandb_run = None
+    if USE_WANDB:
+        try:
+            import wandb
+            wandb_run = wandb.init(
+                project=WANDB_PROJECT,
+                name=MODEL_NAME,
+                config={
+                    'arch': MODEL_NAME, 'model_kwargs': MODEL_KWARGS, 'n_params': n_params,
+                    'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
+                    'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
+                    'huber_delta': HUBER_DELTA, 'n_val_files': N_VAL_FILES,
+                    'n_test_files': N_TEST_FILES, 'split_seed': SPLIT_SEED, 'device': str(device),
+                },
+            )
+        except ImportError:
+            print("WARNING: wandb no está instalado (pip install wandb). Sigo sin logging.")
 
     optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = CosineAnnealingLR(optimizer, T_max=N_EPOCHS, eta_min=LR / 100)
@@ -188,16 +219,24 @@ def main():
             run_loss += loss.item() * len(target)
             n_seen   += len(target)
 
+        cur_lr = optimizer.param_groups[0]['lr']   # lr usado en esta época (antes del step)
         scheduler.step()
         train_loss = run_loss / max(n_seen, 1)
 
         # ── Validación ───────────────────────────────────────
+        # Re-sembramos el rng del val_ds para que las máscaras sean IDÉNTICAS cada
+        # época (si no, el rng con estado deriva y val se mide sobre canales distintos).
+        val_ds.rng = np.random.default_rng(VAL_MASK_SEED)
         val_loss, mae_mod, mae_non = evaluate(model, val_loader, loss_fn, device)
 
         history['train_loss'].append(train_loss)
         history['val_loss'].append(val_loss)
         history['val_mae_mod'].append(mae_mod)
         history['val_mae_non'].append(mae_non)
+
+        if wandb_run is not None:
+            wandb_run.log({'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss,
+                           'val_mae_mod': mae_mod, 'val_mae_non': mae_non, 'lr': cur_lr})
 
         flag = ''
         if val_loss < best_val:
@@ -230,6 +269,12 @@ def main():
     with open(out_dir / 'history.json', 'w') as f:
         json.dump(history, f, indent=2)
     plot_curves(history, out_dir / 'training_curves.png')
+
+    # ── Cerrar W&B: resumen + figura de curvas ───────────────
+    if wandb_run is not None:
+        wandb_run.summary['best_val_loss'] = best_val
+        wandb_run.log({'training_curves': wandb.Image(str(out_dir / 'training_curves.png'))})
+        wandb_run.finish()
 
     print(f"\n✓ Entrenamiento terminado. Mejor val_loss: {best_val:.4f}")
     print(f"  Checkpoint: {ckpt_path}")

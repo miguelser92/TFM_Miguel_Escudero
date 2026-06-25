@@ -12,6 +12,9 @@ __pycache__/
 runs/
 *.pth
 
+# === Weights & Biases (caché local de runs) ===
+wandb/
+
 # === PDFs / PNG de informes (salidas, no código) ===
 reports/*.pdf
 reports/*.png

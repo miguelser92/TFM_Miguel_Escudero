@@ -133,6 +133,41 @@ def load_positions(psipm_path) -> tuple[np.ndarray, np.ndarray]:
 
 
 # ─────────────────────────────────────────────────────────────
+# SPLIT TRAIN / VAL / TEST (por archivo, reproducible)
+# ─────────────────────────────────────────────────────────────
+
+def get_file_split(good_dir, n_val: int = 5, n_test: int = 5, seed: int = 42):
+    """
+    Reparte los archivos Good en train / val / test DISJUNTOS.
+
+    FUENTE ÚNICA DE VERDAD: la usan train.py y imputation_eval.py, así que el split
+    nunca discrepa entre entrenamiento y evaluación.
+
+    - Split por ARCHIVO (cada .dat es un módulo físico distinto): mide la
+      generalización a detectores NO vistos, no a eventos memorizados.
+    - Barajado con seed fijo → reproducible y representativo (no coge los primeros/
+      últimos archivos, que podrían ser de adquisición similar).
+
+    Returns
+    -------
+    train_files, val_files, test_files : listas de Path (ordenadas dentro de cada grupo)
+    """
+    files = sorted(Path(good_dir).glob('datas*.dat'))
+    assert len(files) > n_val + n_test, (
+        f"Solo hay {len(files)} archivos, no caben {n_val} val + {n_test} test"
+    )
+    rng  = np.random.default_rng(seed)
+    perm = rng.permutation(len(files))     # orden barajado, fijo por el seed
+
+    test_idx  = perm[:n_test]
+    val_idx   = perm[n_test:n_test + n_val]
+    train_idx = perm[n_test + n_val:]
+
+    pick = lambda idx: sorted(files[i] for i in idx)   # ordenamos dentro del grupo (legible)
+    return pick(train_idx), pick(val_idx), pick(test_idx)
+
+
+# ─────────────────────────────────────────────────────────────
 # DATASET ON-THE-FLY
 # ─────────────────────────────────────────────────────────────
 
