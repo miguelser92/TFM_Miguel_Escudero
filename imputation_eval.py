@@ -55,7 +55,7 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 # Solo cambias RUN_NAME (la carpeta de la arquitectura). El checkpoint y la carpeta
 # eval/ se derivan solos → no hay que tocar rutas a mano y eval va dentro de cada run.
 RUNS_BASE  = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
-RUN_NAME   = 'imputer_hexcnn-06-23'
+RUN_NAME   = 'imputer_hexcnn' #Modificar segun necesites carpeta
 RUN_DIR    = Path(RUNS_BASE) / RUN_NAME
 CKPT_PATH  = RUN_DIR / 'best_model.pth'
 OUT_DIR    = RUN_DIR / 'eval'

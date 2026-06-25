@@ -303,4 +303,9 @@ def plot_curves(history: dict, save_path):
 
 
 if __name__ == '__main__':
+    # Override opcional del modelo por línea de comandos: python train.py hexcnn
+    # (sin argumento usa MODEL_NAME de la config). Recalcula la carpeta de salida.
+    if len(sys.argv) > 1:
+        MODEL_NAME = sys.argv[1]
+        OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}')
     main()

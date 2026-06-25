@@ -147,31 +147,42 @@ class HexConv(nn.Module):
 
     def __init__(self, in_f: int, out_f: int, neighbor_matrix):
         super().__init__()
-        self.lin_self  = nn.Linear(in_f, out_f)            # transforma el nodo central
-        self.lin_neigh = nn.Linear(in_f, out_f, bias=False)  # transforma la media de vecinos
-        self.bn = nn.BatchNorm1d(out_f)
-        # Buffer (no entrenable): se guarda en el checkpoint y viaja con el modelo
+        # Dos transformaciones lineales con pesos COMPARTIDOS por los 61 nodos (esto es
+        # lo que la hace "convolución": el mismo kernel en todas partes):
+        self.lin_self  = nn.Linear(in_f, out_f)              # aplica al propio nodo (con bias)
+        self.lin_neigh = nn.Linear(in_f, out_f, bias=False)  # aplica a la MEDIA de sus vecinos (sin bias, para no duplicarlo)
+        self.bn = nn.BatchNorm1d(out_f)                      # normaliza la salida (estabiliza el entrenamiento)
+        # Grafo de vecindad (61,6) como BUFFER: tensor NO entrenable que se mueve con
+        # .to(device) y se guarda en el checkpoint → el grafo viaja con el modelo.
         self.register_buffer('nbr', torch.as_tensor(neighbor_matrix, dtype=torch.long))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x : (B, N, Fin) → (B, N, out_f)"""
         # OJO: no usar 'F' como nombre local — taparía a torch.nn.functional as F
-        B, N, Fin = x.shape
+        B, N, Fin = x.shape   # B=batch, N=61 nodos, Fin=features por nodo
 
-        # Nodo de padding en la posición N (todo ceros) para los vecinos inexistentes (-1)
-        x_pad = torch.cat([x, x.new_zeros(B, 1, Fin)], dim=1)   # (B, N+1, Fin)
-        # torch.where: los -1 apuntan al índice N (padding); el resto a su vecino real
-        gather_idx = torch.where(self.nbr >= 0, self.nbr, torch.full_like(self.nbr, N))  # (N, 6)
+        # ── Truco del nodo de padding (para los sensores de borde con <6 vecinos) ──
+        # Añadimos un nodo nº N extra lleno de CEROS al que apuntarán las ranuras vacías.
+        x_pad = torch.cat([x, x.new_zeros(B, 1, Fin)], dim=1)   # (B, N+1, Fin): nodos reales + 1 de padding
+        # En la matriz de vecinos, los huecos valen -1. Los redirigimos al índice N (el de ceros);
+        # el resto se queda con el índice de su vecino real.
+        gather_idx = torch.where(self.nbr >= 0, self.nbr, torch.full_like(self.nbr, N))  # (N, 6) índices ya válidos
 
-        # Indexación avanzada: recoge las features de los 6 vecinos de cada nodo
-        nb = x_pad[:, gather_idx, :]                          # (B, N, 6, F)
+        # ── Recoger los 6 vecinos de los 61 nodos de golpe (sin bucle) ──
+        # Indexación avanzada sobre la dimensión de nodos: para cada nodo i y ranura d,
+        # trae las features del vecino gather_idx[i,d] (ceros si era padding).
+        nb = x_pad[:, gather_idx, :]                          # (B, N, 6, Fin): features de los 6 vecinos
+        # Máscara de qué ranuras son vecinos REALES (1) vs padding (0), lista para broadcasting.
         valid = (self.nbr >= 0).to(x.dtype).view(1, N, -1, 1) # (1, N, 6, 1)
-        # Media solo sobre los vecinos válidos (ignora el padding)
-        nb_mean = (nb * valid).sum(dim=2) / valid.sum(dim=2).clamp(min=1)  # (B, N, F)
+        # Media SOLO sobre los vecinos reales: anulamos el padding (nb*valid) y dividimos por
+        # cuántos vecinos reales hay (3-6 según el nodo). clamp(min=1) evita dividir por 0.
+        nb_mean = (nb * valid).sum(dim=2) / valid.sum(dim=2).clamp(min=1)  # (B, N, Fin)
 
+        # ── La convolución: nodo central + media de vecinos, con sus pesos compartidos ──
         out = self.lin_self(x) + self.lin_neigh(nb_mean)     # (B, N, out_f)
+        # BatchNorm1d espera (muestras, features): aplanamos batch y nodos, normalizamos, deshacemos.
         out = self.bn(out.reshape(B * N, -1)).reshape(B, N, -1)
-        return F.gelu(out)
+        return F.gelu(out)   # no-linealidad suave
 
 
 class HexResBlock(nn.Module):
@@ -179,15 +190,17 @@ class HexResBlock(nn.Module):
 
     def __init__(self, dim: int, neighbor_matrix, dropout: float = 0.1):
         super().__init__()
-        self.c1   = HexConv(dim, dim, neighbor_matrix)
-        self.c2   = HexConv(dim, dim, neighbor_matrix)
-        self.drop = nn.Dropout(dropout)
+        self.c1   = HexConv(dim, dim, neighbor_matrix)   # 1ª convolución hexagonal (mantiene la dimensión)
+        self.c2   = HexConv(dim, dim, neighbor_matrix)   # 2ª convolución hexagonal
+        self.drop = nn.Dropout(dropout)                  # regularización entre las dos convs
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.c1(x)
-        h = self.drop(h)
-        h = self.c2(h)
-        return x + h           # skip connection
+        h = self.c1(x)     # propaga info a 1 anillo de vecinos
+        h = self.drop(h)   # apaga aleatoriamente parte de las features (solo en train)
+        h = self.c2(h)     # propaga otro anillo más
+        # Conexión residual: sumamos la entrada original. Deja pasar el gradiente directo
+        # hacia atrás (entrena mejor en profundidad) y no obliga al bloque a recalcularlo todo.
+        return x + h
 
 
 class HexCNNImputer(nn.Module):
@@ -201,29 +214,38 @@ class HexCNNImputer(nn.Module):
     def __init__(self, hidden: int = 48, n_blocks: int = 4, dropout: float = 0.1,
                  psipm_path: str | None = None):
         super().__init__()
+        # Grafo de vecindad real (61,6), calculado desde psipm.tsv (cacheado). Es el
+        # "cableado" que comparten todas las HexConv de abajo.
         nbr = get_neighbor_matrix(psipm_path) if psipm_path else get_neighbor_matrix()
 
-        # Stem por nodo: 2 features (carga, máscara) → hidden
+        # Stem: proyecta las 2 features de cada nodo (carga, máscara) → 'hidden' dimensiones
         self.stem    = nn.Linear(2, hidden)
         self.stem_bn = nn.BatchNorm1d(hidden)
 
+        # Pila de bloques residuales hexagonales (cada uno = 2 HexConv). Más bloques =
+        # mayor campo receptivo (cada nodo "ve" más lejos en el detector).
         self.blocks = nn.ModuleList([
             HexResBlock(hidden, nbr, dropout) for _ in range(n_blocks)
         ])
 
-        self.head = nn.Linear(hidden, 1)   # un escalar por nodo (carga reconstruida)
+        self.head = nn.Linear(hidden, 1)   # cabeza: de 'hidden' features → 1 escalar por nodo (la carga)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x : (B, 2, 61) → (B, 61)"""
         B = x.shape[0]
-        h = x.permute(0, 2, 1)                               # (B, 61, 2): nodos × features
-        h = self.stem(h)                                     # (B, 61, hidden)
+        # permute: pasamos de (B, 2_features, 61_nodos) a (B, 61_nodos, 2_features),
+        # que es el formato "por nodo" que esperan el stem y las HexConv.
+        h = x.permute(0, 2, 1)                               # (B, 61, 2)
+        h = self.stem(h)                                     # (B, 61, hidden): proyección por nodo
+        # BatchNorm1d necesita (muestras, features): aplanamos batch×nodos, normalizamos,
+        # deshacemos la forma, y aplicamos GELU.
         h = F.gelu(self.stem_bn(h.reshape(B * N_ACTIVE, -1)).reshape(B, N_ACTIVE, -1))
 
         for blk in self.blocks:
-            h = blk(h)                                       # (B, 61, hidden)
+            h = blk(h)                                       # (B, 61, hidden): propaga info entre vecinos
 
-        return self.head(h).squeeze(-1)                      # (B, 61)
+        # head → (B, 61, 1); squeeze(-1) quita la última dimensión → (B, 61) cargas reconstruidas
+        return self.head(h).squeeze(-1)
 
 
 # ─────────────────────────────────────────────────────────────

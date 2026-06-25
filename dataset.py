@@ -64,45 +64,54 @@ def load_dat_to_dense(filepath, max_events: int | None = None) -> np.ndarray:
     -------
     np.ndarray (N, 61) float32 — cargas crudas clipeadas a [0, +inf), eventos no-vacíos.
     """
-    data = Path(filepath).read_bytes()   # leemos todo el archivo de golpe (es <200 MB)
-    buf  = memoryview(data)              # vista sin copia sobre los bytes
-    n    = len(data)
-    pos  = 0                             # puntero de byte
+    # Cargamos TODO el archivo a memoria de una vez (un .dat es <200 MB). Mucho más
+    # rápido que ir pidiéndole bytes al disco dentro del bucle.
+    data = Path(filepath).read_bytes()   # bytes crudos del archivo entero
+    buf  = memoryview(data)              # vista sobre esos bytes SIN copiarlos (la usa np.frombuffer)
+    n    = len(data)                     # tamaño total del archivo en bytes
+    pos  = 0                             # puntero: por qué byte vamos leyendo
 
-    rows = []   # lista de vectores densos (uno por evento)
-    while pos < n:
+    rows = []   # aquí acumulamos un vector denso (61,) por cada evento
+    while pos < n:                       # recorremos el archivo evento a evento hasta el final
+        # Tope opcional de eventos (para pruebas rápidas): paramos al alcanzarlo
         if max_events and len(rows) >= max_events:
             break
 
-        nint = data[pos]   # Nint: nº de SiPMs disparados (uint8)
-        pos += 1
+        # ── Cabecera del evento: 1 byte = Nint (cuántos SiPMs dispararon) ──
+        nint = data[pos]   # indexar 1 byte en Python da directamente el int (rango 0-255)
+        pos += 1           # avanzamos el puntero: ya hemos consumido el byte de Nint
         if nint == 0:
-            continue
+            continue       # evento vacío (raro): no hay pares que leer → al siguiente
 
-        block = nint * 8   # cada par (Rch, Ich) ocupa 4+4 bytes
+        # ── Cuerpo del evento: Nint pares (Rch float32 + Ich int32) = 8 bytes cada uno ──
+        block = nint * 8   # nº de bytes que ocupa el cuerpo de este evento
         if pos + block > n:
-            break          # archivo truncado
+            break          # no quedan bytes suficientes → archivo truncado, paramos
 
+        # np.frombuffer reinterpreta 'block' bytes como un array de 'nint' registros
+        # estructurados (rch, ich), SIN copiar. count = nº de registros; offset = desde dónde.
         rec = np.frombuffer(buf, dtype=REC_DTYPE, count=nint, offset=pos)
-        pos += block
+        pos += block       # avanzamos el puntero al final de este evento
 
-        ich = rec['ich']
-        rch = rec['rch']
+        ich = rec['ich']   # array (nint,) con los IDs de canal que dispararon
+        rch = rec['rch']   # array (nint,) con sus cargas, en el mismo orden
 
-        # Construimos el vector denso de 61 posiciones a 0
-        row = np.zeros(N_ACTIVE, dtype=np.float32)
-        for r, c in zip(rch, ich):
-            idx = ICH_TO_IDX.get(int(c))   # None si el canal es inactivo (1,16,18)
-            if idx is not None:
-                row[idx] = r
-        rows.append(row)
+        # ── Densificación: del formato disperso (nint pares) al vector fijo de 61 ──
+        row = np.zeros(N_ACTIVE, dtype=np.float32)   # vector denso: todo a 0 por defecto
+        for r, c in zip(rch, ich):                   # recorremos los pares (carga, canal) del evento
+            idx = ICH_TO_IDX.get(int(c))             # Ich físico → índice denso [0,60]; None si inactivo (1,16,18)
+            if idx is not None:                      # ignoramos canales inactivos o IDs basura
+                row[idx] = r                         # colocamos la carga en su posición del vector denso
+        rows.append(row)                             # guardamos el evento ya densificado
 
-    X = np.asarray(rows, dtype=np.float32)
-    X = np.clip(X, 0, None)              # negativos (ruido ADC) → 0; nunca abs()
+    # ── Post-proceso de toda la matriz ──
+    X = np.asarray(rows, dtype=np.float32)   # lista de N vectores → matriz (N, 61)
+    X = np.clip(X, 0, None)                  # cargas negativas (ruido del ADC) → 0. NUNCA abs() (inventaría señal)
 
-    # Descartamos eventos totalmente vacíos (no aportan nada y rompen la normalización)
+    # Descartamos eventos totalmente vacíos: no aportan nada y romperían la
+    # normalización por evento (dividir por un máximo de 0).
     if len(X) > 0:
-        X = X[X.sum(axis=1) > 0]
+        X = X[X.sum(axis=1) > 0]   # máscara booleana: nos quedamos solo con filas con algo de señal
     return X
 
 
@@ -189,57 +198,67 @@ class SiPMImputationDataset(Dataset):
     """
 
     def __init__(self, X_raw: np.ndarray, seed: int = 0):
+        # ascontiguousarray: garantiza memoria contigua y dtype float32 (acceso rápido;
+        # evita sorpresas si X_raw venía de un slicing no contiguo de otro array).
         self.X = np.ascontiguousarray(X_raw, dtype=np.float32)
+        # Generador aleatorio PROPIO del dataset (no el global de numpy) → reproducible
+        # y aislado. train.py le pasa una semilla distinta por época para variar el masking.
         self.rng = np.random.default_rng(seed)
 
     def __len__(self) -> int:
+        # PyTorch usa esto para saber cuántas muestras hay (= nº de eventos).
         return len(self.X)
 
     def __getitem__(self, idx: int):
-        x_raw = self.X[idx].copy()   # .copy() para no tocar el array compartido
+        # PyTorch llama a esto para obtener la muestra 'idx'. Aquí fabricamos la muestra
+        # de imputación AL VUELO a partir del evento sano X[idx].
+        x_raw = self.X[idx].copy()   # .copy(): trabajamos sobre una copia, no tocamos el array compartido
 
-        # Índices de canales con señal y a cero en ESTE evento
-        active = np.flatnonzero(x_raw > 0)   # flatnonzero = where(cond)[0], más directo
-        zeros  = np.flatnonzero(x_raw == 0)
+        # ── Qué canales tienen señal y cuáles están a 0 en ESTE evento ──
+        active = np.flatnonzero(x_raw > 0)    # índices con carga > 0 (flatnonzero = where(cond)[0])
+        zeros  = np.flatnonzero(x_raw == 0)   # índices a 0 (no dispararon)
 
-        # ── Elegir canal a apagar según la clase (paridad del índice) ──
+        # ── Elegir QUÉ canal apagar, forzando la clase por la PARIDAD del índice ──
+        # (con shuffle=True en el DataLoader, esto da ~50/50 modified/non-modified por batch)
         if idx % 2 == 0 and len(active) > 0:
-            ch = int(self.rng.choice(active))   # MODIFIED: apagamos un canal con señal
-            is_modified = 1
+            ch = int(self.rng.choice(active))   # MODIFIED: apagamos un canal que SÍ tenía señal
+            is_modified = 1                     #   → la red tendrá que imputar de verdad
         elif len(zeros) > 0:
-            ch = int(self.rng.choice(zeros))    # NON-MODIFIED: apagamos un canal ya a 0
-            is_modified = 0
+            ch = int(self.rng.choice(zeros))    # NON-MODIFIED: apagamos un canal que ya valía 0
+            is_modified = 0                     #   → la red debe aprender a NO corregir
         else:
-            # Fallback raro (evento sin ceros): tratamos como modified
+            # Fallback raro: evento sin ningún canal a 0 (casi imposible) → lo tratamos como modified
             ch = int(self.rng.choice(active))
             is_modified = 1
 
-        # ── Apagar el canal y normalizar POR EVENTO (después de apagar) ──
-        x_masked = x_raw.copy()
-        x_masked[ch] = 0.0
+        # ── Apagar el canal elegido y normalizar POR EVENTO (DESPUÉS de apagar) ──
+        x_masked = x_raw.copy()   # copia del evento donde simularemos el fallo
+        x_masked[ch] = 0.0        # "matamos" el canal: ponemos su carga a 0
 
-        norm = x_masked.max()
+        norm = x_masked.max()     # máximo SOBRE LOS CANALES VISIBLES (post-máscara) = factor de escala
         if norm == 0:
-            norm = 1.0   # guard: evento con un único canal que era el apagado
+            norm = 1.0   # guard anti división por cero: evento cuyo único canal con señal era el apagado
 
-        # Input y target comparten el MISMO factor de normalización (máx post-máscara).
-        # → target[ch] puede ser > 1 si el canal apagado era el más brillante. Es correcto.
-        x_input = x_masked / norm        # (61,) cargas normalizadas con el canal a 0
-        target  = x_raw / norm           # (61,) vector original completo, misma escala
+        # Input y target comparten el MISMO factor 'norm' (el máx post-máscara). Por eso
+        # target[ch] puede salir > 1 si el canal apagado era el más brillante → es CORRECTO,
+        # y obliga a que la salida de la red sea lineal (sin sigmoide/clamp).
+        x_input = x_masked / norm        # (61,) entrada: cargas normalizadas con el canal a 0
+        target  = x_raw    / norm        # (61,) objetivo: vector original COMPLETO, misma escala
 
-        # Máscara binaria: 1 = canal presente, 0 = canal apagado
-        mask = np.ones(N_ACTIVE, dtype=np.float32)
-        mask[ch] = 0.0
+        # Máscara binaria que le dice a la red qué canal está apagado
+        mask = np.ones(N_ACTIVE, dtype=np.float32)   # 1 = canal presente
+        mask[ch] = 0.0                               # 0 = canal apagado (el que hay que imputar)
 
-        # Entrada como matriz 2×61 (channels-first para PyTorch):
-        # fila 0 = cargas normalizadas, fila 1 = máscara
+        # Apilamos en una matriz 2×61 (channels-first, como espera PyTorch):
+        #   fila 0 = cargas normalizadas,  fila 1 = máscara
         x_in = np.stack([x_input, mask], axis=0)   # (2, 61)
 
+        # Devolvemos la tupla que el DataLoader agrupará en batches:
         return (
-            torch.from_numpy(x_in),                          # (2, 61) float32
-            torch.from_numpy(target),                        # (61,)   float32
-            torch.tensor(ch, dtype=torch.long),              # canal apagado (índice denso)
-            torch.tensor(is_modified, dtype=torch.long),     # 1=modified, 0=non-modified
+            torch.from_numpy(x_in),                          # entrada  (2, 61) float32
+            torch.from_numpy(target),                        # objetivo (61,)   float32 (los 61 canales)
+            torch.tensor(ch, dtype=torch.long),              # índice denso del canal apagado
+            torch.tensor(is_modified, dtype=torch.long),     # etiqueta: 1=modified, 0=non-modified (no la ve la red)
         )
 
 
