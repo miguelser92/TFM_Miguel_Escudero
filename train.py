@@ -1,4 +1,4 @@
-"""
+r"""
 train.py
 ========
 Bucle de entrenamiento de la imputación SiPM con generación on-the-fly.
@@ -13,6 +13,17 @@ Métricas: pérdida Huber sobre los 61 canales + MAE en el canal imputado, repor
 por separado para muestras modified y non-modified (evaluación estratificada).
 
 Guarda el mejor modelo en .pth para reutilizarlo después (ver imputation_eval.py).
+
+
+Prara runeo automatico en powershell
+conda activate tfm
+cd "C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código"
+foreach ($m in 'deepmlp','resmlp','hexcnn') {
+    Write-Host "=== Entrenando $m ===" -ForegroundColor Cyan
+    python train.py $m
+}
+
+
 
 Uso:
     conda activate tfm
@@ -67,6 +78,11 @@ PATIENCE      = 8            # early stopping
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
+# Función de pérdida: 'huber' | 'mae' | 'mse'. Cada una va a SU carpeta y SU run de W&B
+# (se añade el sufijo de la loss, salvo para 'huber' que es la de referencia) → no se pisan.
+LOSS          = 'mse'
+RUN_SUFFIX    = '' if LOSS == 'huber' else f'_{LOSS}'
+
 # Split limpio (fuente única en dataset.get_file_split): train / val / test disjuntos
 N_VAL_FILES   = 5
 N_TEST_FILES  = 5           # reservado: NUNCA se toca (ni train ni validación)
@@ -77,8 +93,8 @@ VAL_MASK_SEED = 12345       # semilla fija de las máscaras de validación (idé
 USE_WANDB     = True
 WANDB_PROJECT = 'TFM-SiPM-imputation'
 
-# Carpeta de salida separada por arquitectura (no se pisan los checkpoints)
-OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}')
+# Carpeta de salida separada por arquitectura + loss (no se pisan los checkpoints)
+OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}{RUN_SUFFIX}')
 
 
 # ════════════════════════════════════════════════════════════
@@ -168,13 +184,14 @@ def main():
             import wandb
             wandb_run = wandb.init(
                 project=WANDB_PROJECT,
-                name=MODEL_NAME,
+                name=f'{MODEL_NAME}{RUN_SUFFIX}',
                 config={
                     'arch': MODEL_NAME, 'model_kwargs': MODEL_KWARGS, 'n_params': n_params,
+                    'loss': LOSS, 'huber_delta': HUBER_DELTA,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
-                    'huber_delta': HUBER_DELTA, 'n_val_files': N_VAL_FILES,
-                    'n_test_files': N_TEST_FILES, 'split_seed': SPLIT_SEED, 'device': str(device),
+                    'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
+                    'split_seed': SPLIT_SEED, 'device': str(device),
                 },
             )
         except ImportError:
@@ -182,7 +199,17 @@ def main():
 
     optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = CosineAnnealingLR(optimizer, T_max=N_EPOCHS, eta_min=LR / 100)
-    loss_fn   = nn.HuberLoss(delta=HUBER_DELTA)
+
+    # Pérdida según el flag LOSS de la config
+    if LOSS == 'huber':
+        loss_fn = nn.HuberLoss(delta=HUBER_DELTA)
+    elif LOSS == 'mae':
+        loss_fn = nn.L1Loss()       # MAE = error absoluto medio
+    elif LOSS == 'mse':
+        loss_fn = nn.MSELoss()
+    else:
+        raise ValueError(f"LOSS '{LOSS}' no reconocida (usa 'huber', 'mae' o 'mse')")
+    print(f"Loss: {LOSS}")
 
     history = {'train_loss': [], 'val_loss': [], 'val_mae_mod': [], 'val_mae_non': []}
     best_val = float('inf')
@@ -286,7 +313,7 @@ def plot_curves(history: dict, save_path):
 
     axes[0].plot(history['train_loss'], label='Train', color='steelblue')
     axes[0].plot(history['val_loss'],   label='Validation', color='coral')
-    axes[0].set_title('Loss (Huber)')
+    axes[0].set_title('Training loss')
     axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Loss')
     axes[0].legend(); axes[0].grid(True, alpha=0.3)
 
@@ -307,5 +334,5 @@ if __name__ == '__main__':
     # (sin argumento usa MODEL_NAME de la config). Recalcula la carpeta de salida.
     if len(sys.argv) > 1:
         MODEL_NAME = sys.argv[1]
-        OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}')
+        OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}{RUN_SUFFIX}')
     main()

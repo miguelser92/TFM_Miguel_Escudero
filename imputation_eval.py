@@ -33,6 +33,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+from scipy.spatial import ConvexHull
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -55,7 +56,7 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 # Solo cambias RUN_NAME (la carpeta de la arquitectura). El checkpoint y la carpeta
 # eval/ se derivan solos → no hay que tocar rutas a mano y eval va dentro de cada run.
 RUNS_BASE  = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
-RUN_NAME   = 'imputer_hexcnn' #Modificar segun necesites carpeta
+RUN_NAME   = 'imputer_hexcnn_mse' #Modificar segun necesites carpeta
 RUN_DIR    = Path(RUNS_BASE) / RUN_NAME
 CKPT_PATH  = RUN_DIR / 'best_model.pth'
 OUT_DIR    = RUN_DIR / 'eval'
@@ -67,6 +68,10 @@ GOOD_ICH    = 30          # canal físico (Ich) a apagar/imputar en la demo Good
 MAX_EVENTS  = 400_000     # eventos para la demo Good de un solo archivo
 
 TEST_MAX_EVENTS = 200_000  # eventos por archivo de test (son varios, agregados)
+
+# Formatos de salida de las figuras. PDF = vectorial (memoria); PNG = raster para W&B
+# (mejor que JPG en plots: sin artefactos de compresión en líneas/texto).
+FIG_FORMATS = ('pdf', 'png')   # p.ej. ('pdf',) solo PDF, ('png',) solo PNG, o ambos
 
 # Demo Bad (opcional): imputar el canal muerto real de un archivo Bad
 BAD_FILE    = r'E:\Datos TFM\Bad\Bad\datas016.dat'
@@ -172,7 +177,28 @@ def compute_xy(X, x_sipm, y_sipm):
     return pos_x, pos_y
 
 
-def plot_flood_comparison(datasets, titles, x_sipm, y_sipm, suptitle, save_path,
+def save_fig(fig, save_base, dpi=200):
+    """Guarda la figura en cada formato de FIG_FORMATS (save_base SIN extensión)."""
+    for fmt in FIG_FORMATS:
+        path = f"{save_base}.{fmt}"
+        fig.savefig(path, dpi=dpi, bbox_inches='tight')
+        print(f"  Guardado: {path}")
+
+
+def crystal_hull(x_sipm, y_sipm):
+    """
+    Frontera del array de SiPM (convex hull) = contorno hexagonal del detector.
+    Sirve para ver el tamaño de la zona de error respecto al cristal LYSO.
+    Devuelve el polígono CERRADO (hx, hy).
+    """
+    pts = np.column_stack([x_sipm, y_sipm])
+    v = ConvexHull(pts).vertices            # índices de los SiPM que forman el borde
+    hx = np.append(x_sipm[v], x_sipm[v[0]])  # cerramos el polígono volviendo al inicio
+    hy = np.append(y_sipm[v], y_sipm[v[0]])
+    return hx, hy
+
+
+def plot_flood_comparison(datasets, titles, x_sipm, y_sipm, suptitle, save_base,
                           highlight_chs=None, bins=150, marker_radius=1.8):
     """
     Dibuja N flood maps lado a lado (etiquetas en inglés), con overlay de las
@@ -206,17 +232,17 @@ def plot_flood_comparison(datasets, titles, x_sipm, y_sipm, suptitle, save_path,
         ax.scatter(x_sipm, y_sipm, facecolors='none', edgecolors='white',
                    s=55, linewidths=0.5, alpha=0.4, zorder=3)
 
-        # Canal(es) objetivo: círculo rojo TRANSLÚCIDO (deja ver el flood map debajo)
+        # Canal(es) objetivo: CIRCUNFERENCIA roja hueca (sin relleno) → no tapa el flood map
         for c in chs:
             circ = Circle((x_sipm[c], y_sipm[c]), radius=marker_radius,
-                          facecolor='red', alpha=0.30, edgecolor='red',
-                          linewidth=1.3, zorder=4)
+                          facecolor='none', edgecolor='red',
+                          linewidth=2.2, zorder=4)
             ax.add_patch(circ)
 
         # Leyenda con los Ich resaltados (el canal también está en el título, pero ayuda)
         if chs:
             ich_list = ', '.join(f"Ich={IDX_TO_ICH[c]}" for c in chs)
-            proxy = Circle((0, 0), 1, facecolor='red', alpha=0.30, edgecolor='red')
+            proxy = Circle((0, 0), 1, facecolor='none', edgecolor='red', linewidth=2.2)
             ax.legend([proxy], [f"Target: {ich_list}"], loc='upper right', fontsize=9)
 
         ax.set_aspect('equal')
@@ -225,13 +251,11 @@ def plot_flood_comparison(datasets, titles, x_sipm, y_sipm, suptitle, save_path,
 
     plt.suptitle(suptitle, fontsize=14, fontweight='bold')
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    # dpi alto: el flood map (imagen) se rasteriza dentro del PDF; el resto es vectorial
-    fig.savefig(save_path, dpi=200, bbox_inches='tight')
+    save_fig(fig, save_base)
     plt.close(fig)
-    print(f"  Guardado: {save_path}")
 
 
-def plot_error_diagnostics(true_raw, pred_raw, ich, suptitle, save_path):
+def plot_error_diagnostics(true_raw, pred_raw, ich, suptitle, save_base):
     """
     Diagnóstico cuantitativo de la imputación en datos Good (con ground truth).
 
@@ -287,9 +311,8 @@ def plot_error_diagnostics(true_raw, pred_raw, ich, suptitle, save_path):
 
     plt.suptitle(suptitle, fontsize=14, fontweight='bold')
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    fig.savefig(save_path, dpi=200, bbox_inches='tight')
+    save_fig(fig, save_base)
     plt.close(fig)
-    print(f"  Guardado: {save_path}")
     print(f"  Residuo: MAE={mae:.3f}  RMSE={rmse:.3f}  bias={bias:.3f}  (ADC, modified)")
     return {'mae': mae, 'rmse': rmse, 'bias': bias, 'n_modified': int(len(t))}
 
@@ -298,45 +321,49 @@ def plot_error_diagnostics(true_raw, pred_raw, ich, suptitle, save_path):
 #  ERROR A NIVEL DE FLOOD MAP / POSICIÓN
 # ════════════════════════════════════════════════════════════
 
-def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, save_path, bins=150):
+def position_quantities(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, bins=150):
     """
-    Error de la imputación a nivel de POSICIÓN — la métrica que de verdad importa
-    para el TFM (es el proxy del FWHM): no mira la carga de un canal aislado, sino
-    cuánto se desplaza la posición reconstruida del evento.
-
-    Tres paneles:
-      1. Histograma del desplazamiento ΔR respecto a la posición original, para el
-         caso degradado (canal apagado) vs imputado. Anota las medianas y el % de
-         recuperación. Solo sobre eventos MODIFIED (los que el fallo afecta).
-      2-3. Mapa 2D de diferencia de llenado (degradado − original) e (imputado − original):
-         dónde sobran/faltan cuentas. Si la imputación es buena, el panel 3 ≈ 0.
+    Calcula las cantidades del position error de UN archivo, listas para dibujar o agregar:
+      - dR_deg, dR_imp : desplazamientos ΔR por evento (solo MODIFIED).
+      - Ho, Hd, Hi     : histogramas 2D de posición (original/degradado/imputado) en el
+                         MISMO grid → se pueden restar (diferencia) y sumar entre archivos.
+      - extent         : límites del grid en mm (para imshow).
     """
-    # Posición XY por centro de gravedad Rch² en los tres estados
     ox, oy = compute_xy(X_orig, x_sipm, y_sipm)
     dx, dy = compute_xy(X_deg,  x_sipm, y_sipm)
     ix, iy = compute_xy(X_imp,  x_sipm, y_sipm)
 
-    # ΔR solo donde apagar el canal cambia algo (eventos con señal real en él)
-    is_mod = X_orig[:, ch_idx] > 0
+    is_mod = X_orig[:, ch_idx] > 0   # ΔR solo donde apagar el canal cambia algo
     dR_deg = np.sqrt((dx - ox) ** 2 + (dy - oy) ** 2)[is_mod]
     dR_imp = np.sqrt((ix - ox) ** 2 + (iy - oy) ** 2)[is_mod]
-    med_deg,  med_imp  = float(np.median(dR_deg)),       float(np.median(dR_imp))
-    mean_deg, mean_imp = float(dR_deg.mean()),           float(dR_imp.mean())
-    p90_deg,  p90_imp  = float(np.percentile(dR_deg, 90)), float(np.percentile(dR_imp, 90))
-    # Recuperación: con la mediana (comprime) y con el p90 (eventos donde el canal domina)
-    recovery     = (med_deg - med_imp) / med_deg * 100 if med_deg > 0 else 0.0
-    recovery_p90 = (p90_deg - p90_imp) / p90_deg * 100 if p90_deg > 0 else 0.0
 
-    # Histogramas 2D en una rejilla común (mismo grid para poder restar)
     rng = [[x_sipm.min() - 2, x_sipm.max() + 2], [y_sipm.min() - 2, y_sipm.max() + 2]]
     Ho, xe, ye = np.histogram2d(ox, oy, bins=bins, range=rng)
     Hd, _,  _  = np.histogram2d(dx, dy, bins=bins, range=rng)
     Hi, _,  _  = np.histogram2d(ix, iy, bins=bins, range=rng)
-    diff_deg = Hd - Ho
-    diff_imp = Hi - Ho
-    # escala de color simétrica común (la fija el daño del degradado)
-    vmax = float(np.percentile(np.abs(diff_deg), 99.5)) or 1.0
     extent = [xe[0], xe[-1], ye[0], ye[-1]]
+    return dR_deg, dR_imp, Ho, Hd, Hi, extent
+
+
+def _render_position_error(dR_deg, dR_imp, diff_deg, diff_imp, extent, ch_idx,
+                           x_sipm, y_sipm, suptitle, save_base):
+    """
+    Dibuja la figura de position error (3 paneles) a partir de cantidades YA calculadas.
+    Sirve igual para un archivo o para el POOL de varios (le pasas los ΔR concatenados y
+    los mapas de diferencia sumados). Devuelve el dict de métricas. Guarda solo si save_base.
+
+    Paneles: (1) histograma de ΔR degradado vs imputado + % recuperación;
+             (2-3) mapas de diferencia de llenado (degradado/imputado − original), con la
+             FRONTERA del detector dibujada para ver el tamaño de la zona de error.
+    """
+    med_deg,  med_imp  = float(np.median(dR_deg)),        float(np.median(dR_imp))
+    mean_deg, mean_imp = float(dR_deg.mean()),            float(dR_imp.mean())
+    p90_deg,  p90_imp  = float(np.percentile(dR_deg, 90)), float(np.percentile(dR_imp, 90))
+    recovery     = (med_deg - med_imp) / med_deg * 100 if med_deg > 0 else 0.0
+    recovery_p90 = (p90_deg - p90_imp) / p90_deg * 100 if p90_deg > 0 else 0.0
+    vmax = float(np.percentile(np.abs(diff_deg), 99.5)) or 1.0
+
+    hx, hy = crystal_hull(x_sipm, y_sipm)   # frontera del detector (convex hull de SiPM)
 
     fig, axes = plt.subplots(1, 3, figsize=(21, 7))
 
@@ -363,16 +390,19 @@ def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, 
         im = ax.imshow(diff.T, origin='lower', extent=extent, cmap='RdBu_r',
                        vmin=-vmax, vmax=vmax, aspect='equal')
         plt.colorbar(im, ax=ax, label='Δ counts', fraction=0.046, pad=0.04)
-        # marcamos la posición del canal afectado
+        # frontera del detector: contextualiza el tamaño de la zona de error (el resto es ~0)
+        ax.plot(hx, hy, color='lime', lw=1.6, zorder=5, label='Detector boundary')
+        # circunferencia negra en la posición del canal afectado
         ax.add_patch(Circle((x_sipm[ch_idx], y_sipm[ch_idx]), radius=1.8,
-                            facecolor='none', edgecolor='black', linewidth=1.2))
+                            facecolor='none', edgecolor='black', linewidth=1.4, zorder=6))
         ax.set_title(title); ax.set_xlabel('X [mm]'); ax.set_ylabel('Y [mm]')
+        ax.legend(loc='upper right', fontsize=8)
 
     plt.suptitle(suptitle, fontsize=14, fontweight='bold')
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.savefig(save_path, dpi=200, bbox_inches='tight')
+    if save_base is not None:
+        save_fig(fig, save_base)
     plt.close(fig)
-    print(f"  Guardado: {save_path}")
     print(f"  ΔR (imputado)  mediana={med_imp:.4f}  media={mean_imp:.4f}  p90={p90_imp:.4f} mm")
     print(f"  ΔR (degradado) mediana={med_deg:.4f}  media={mean_deg:.4f}  p90={p90_deg:.4f} mm")
     print(f"  recuperación: mediana={recovery:.0f}%  ·  p90={recovery_p90:.0f}%")
@@ -381,28 +411,40 @@ def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, 
         'dR_deg':        {'median': med_deg,  'mean': mean_deg,  'p90': p90_deg},
         'recovery_median_pct': recovery,
         'recovery_p90_pct':    recovery_p90,
-        'n_modified':    int(is_mod.sum()),
+        'n_modified':    int(len(dR_deg)),
     }
+
+
+def plot_position_error(X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, suptitle, save_base, bins=150):
+    """Position error de UN archivo: calcula las cantidades y dibuja (proxy del FWHM)."""
+    dR_deg, dR_imp, Ho, Hd, Hi, extent = position_quantities(
+        X_orig, X_deg, X_imp, ch_idx, x_sipm, y_sipm, bins)
+    return _render_position_error(dR_deg, dR_imp, Hd - Ho, Hi - Ho, extent,
+                                  ch_idx, x_sipm, y_sipm, suptitle, save_base)
 
 
 # ════════════════════════════════════════════════════════════
 #  EVALUACIÓN AGREGADA SOBRE VARIOS ARCHIVOS
 # ════════════════════════════════════════════════════════════
 
-def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events):
+def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events, pos_fig_base=None):
     """
     Imputa el canal ch_idx en VARIOS archivos held-out y agrega las métricas.
 
     Pooling: las cargas y los ΔR (en mm) son comparables entre archivos (misma
     geometría), así que juntarlos da una métrica más representativa que un solo .dat.
+    Si se pasa pos_fig_base, dibuja también la figura POOLED del position error (los N
+    archivos juntos), que es la que respalda los números de la tabla.
 
     Returns
     -------
-    true_all, pred_all : np.ndarray (N_total,) carga real y predicha del canal (todos los eventos)
+    true_all, pred_all, metrics
     """
     true_all, pred_all   = [], []
     dR_deg_all, dR_imp_all = [], []
-    per_file = []   # métricas por archivo (para guardar en el JSON)
+    Ho_sum = Hd_sum = Hi_sum = None   # histogramas de posición acumulados (para el mapa pooled)
+    extent = None
+    per_file = []                     # métricas por archivo (para el JSON)
 
     print(f"\n=== AGREGADO sobre {len(files)} archivos held-out (Ich={IDX_TO_ICH[ch_idx]}) ===")
     for f in files:
@@ -411,14 +453,16 @@ def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events)
         true = X[:, ch_idx]
         true_all.append(true); pred_all.append(pred)
 
-        is_mod = true > 0
-        ox, oy = compute_xy(X, x_sipm, y_sipm)
+        # Cantidades de posición de este archivo (ΔR + histogramas en el grid común)
         Xd = X.copy(); Xd[:, ch_idx] = 0.0
-        dx, dy = compute_xy(Xd, x_sipm, y_sipm)
-        ix, iy = compute_xy(X_imp, x_sipm, y_sipm)
-        dR_deg_all.append(np.sqrt((dx - ox)**2 + (dy - oy)**2)[is_mod])
-        dR_imp_all.append(np.sqrt((ix - ox)**2 + (iy - oy)**2)[is_mod])
+        dR_deg, dR_imp, Ho, Hd, Hi, extent = position_quantities(X, Xd, X_imp, ch_idx, x_sipm, y_sipm)
+        dR_deg_all.append(dR_deg); dR_imp_all.append(dR_imp)
+        if Ho_sum is None:
+            Ho_sum, Hd_sum, Hi_sum = Ho.copy(), Hd.copy(), Hi.copy()
+        else:
+            Ho_sum += Ho; Hd_sum += Hd; Hi_sum += Hi   # sumamos los llenados de todos los archivos
 
+        is_mod = true > 0
         rm, pm = true[is_mod], pred[is_mod]
         fmae, fbias = float(np.abs(pm - rm).mean()), float((pm - rm).mean())
         per_file.append({'file': f.name, 'mae_mod': fmae, 'bias': fbias, 'n_mod': int(is_mod.sum())})
@@ -434,22 +478,24 @@ def evaluate_multifile(model, files, ch_idx, device, x_sipm, y_sipm, max_events)
     mae  = float(np.abs(pm - rm).mean())
     rmse = float(np.sqrt(((pm - rm) ** 2).mean()))
     bias = float((pm - rm).mean())
-    print(f"  -- POOLED: MAE_mod={mae:.3f}  RMSE={rmse:.3f}  bias={bias:+.3f}  "
-          f"(N_mod={is_mod.sum():,})")
-    print(f"  -- POOLED ΔR imputado : mediana={np.median(dR_imp):.4f}  "
-          f"media={dR_imp.mean():.4f}  p90={np.percentile(dR_imp, 90):.4f} mm")
-    print(f"  -- POOLED ΔR degradado: mediana={np.median(dR_deg):.4f}  "
-          f"media={dR_deg.mean():.4f}  p90={np.percentile(dR_deg, 90):.4f} mm")
+    print(f"  -- POOLED: MAE_mod={mae:.3f}  RMSE={rmse:.3f}  bias={bias:+.3f}  (N_mod={is_mod.sum():,})")
+
+    # Figura POOLED del position error + métricas de posición agregadas (mismo render que el single)
+    pos = _render_position_error(
+        dR_deg, dR_imp, Hd_sum - Ho_sum, Hi_sum - Ho_sum, extent, ch_idx, x_sipm, y_sipm,
+        suptitle=(f"Aggregated over {len(files)} held-out test files — "
+                  f"flood-map / position error Ich={IDX_TO_ICH[ch_idx]}"),
+        save_base=pos_fig_base,
+    )
 
     metrics = {
         'n_files':  len(files),
         'per_file': per_file,
         'pooled': {
             'mae_mod': mae, 'rmse': rmse, 'bias': bias, 'n_mod': int(is_mod.sum()),
-            'dR_imp': {'median': float(np.median(dR_imp)), 'mean': float(dR_imp.mean()),
-                       'p90': float(np.percentile(dR_imp, 90))},
-            'dR_deg': {'median': float(np.median(dR_deg)), 'mean': float(dR_deg.mean()),
-                       'p90': float(np.percentile(dR_deg, 90))},
+            'dR_imp': pos['dR_imp'], 'dR_deg': pos['dR_deg'],
+            'recovery_median_pct': pos['recovery_median_pct'],
+            'recovery_p90_pct':    pos['recovery_p90_pct'],
         },
     }
     return true_all, pred_all, metrics
@@ -496,30 +542,31 @@ def run_eval(ckpt_path, out_dir):
          f"Imputed (Ich={GOOD_ICH} recovered)"],
         x_sipm, y_sipm,
         suptitle=f"Good file {Path(good_demo).stem} — channel Ich={GOOD_ICH}",
-        save_path=str(out_dir / f'flood_good_ich{GOOD_ICH}.pdf'),
+        save_base=str(out_dir / f'flood_good_ich{GOOD_ICH}'),
         highlight_chs=ch,
     )
 
     err_single = plot_error_diagnostics(
         X_good[:, ch], pred, GOOD_ICH,
         suptitle=f"Good file {Path(good_demo).stem} — imputation error Ich={GOOD_ICH}",
-        save_path=str(out_dir / f'error_good_ich{GOOD_ICH}.pdf'),
+        save_base=str(out_dir / f'error_good_ich{GOOD_ICH}'),
     )
 
     pos = plot_position_error(
         X_good, X_deg, X_imp, ch, x_sipm, y_sipm,
         suptitle=f"Good file {Path(good_demo).stem} — flood-map / position error Ich={GOOD_ICH}",
-        save_path=str(out_dir / f'position_error_good_ich{GOOD_ICH}.pdf'),
+        save_base=str(out_dir / f'position_error_good_ich{GOOD_ICH}'),
     )
 
-    # ── Métricas agregadas sobre los archivos de TEST (held-out) ────
+    # ── Métricas agregadas sobre los archivos de TEST (held-out) + figura POOLED ────
     true_all, pred_all, pooled = evaluate_multifile(
         model, test_files, ch, device, x_sipm, y_sipm, TEST_MAX_EVENTS,
+        pos_fig_base=str(out_dir / f'position_error_aggregated_ich{GOOD_ICH}'),
     )
     err_agg = plot_error_diagnostics(
         true_all, pred_all, GOOD_ICH,
         suptitle=f"Aggregated over {len(test_files)} held-out test files — imputation error Ich={GOOD_ICH}",
-        save_path=str(out_dir / f'error_aggregated_ich{GOOD_ICH}.pdf'),
+        save_base=str(out_dir / f'error_aggregated_ich{GOOD_ICH}'),
     )
 
     # ── Demo Bad: canal muerto real (sin ground truth) ───────
@@ -534,7 +581,7 @@ def run_eval(ckpt_path, out_dir):
              f"Imputed (Ich={BAD_ICH} recovered)"],
             x_sipm, y_sipm,
             suptitle=f"Bad file {Path(BAD_FILE).stem} — dead channel Ich={BAD_ICH}",
-            save_path=str(out_dir / f'flood_bad_ich{BAD_ICH}.pdf'),
+            save_base=str(out_dir / f'flood_bad_ich{BAD_ICH}'),
             highlight_chs=chb,
         )
 
