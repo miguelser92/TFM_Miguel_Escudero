@@ -67,8 +67,19 @@ GOOD_DIR    = r'E:\Datos TFM\Good\Good'
 RUNS_BASE   = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
 
 # Arquitectura a entrenar: 'deepmlp' (baseline) | 'resmlp' | 'hexcnn'
-MODEL_NAME    = 'deepmlp'
-MODEL_KWARGS  = {}          # {} = usa los defaults de cada modelo; o p.ej. dict(hidden=64)
+MODEL_NAME    = 'hexcnn'
+# Tamaño de la HexCNN: '' = defaults del modelo | 's' | 'm' | 'l' (presets de capacidad).
+# Solo aplica a hexcnn; añade sufijo a la carpeta y al run de W&B (p.ej. imputer_hexcnn_l_mse).
+MODEL_SIZE    = ''
+MODEL_KWARGS  = {}          # override manual EXTRA (se fusiona ENCIMA del preset de tamaño)
+
+# Presets de capacidad de la HexCNN (ancho 'hidden' y nº de bloques residuales).
+# Params aprox: s≈38K (la actual) · m≈225K · l≈399K (~ resmlp 346K → comparación a igual presupuesto).
+HEXCNN_SIZES = {
+    's': dict(hidden=48,  n_blocks=4),
+    'm': dict(hidden=96,  n_blocks=6),
+    'l': dict(hidden=128, n_blocks=6),
+}
 
 N_EPOCHS      = 40
 BATCH_SIZE    = 512
@@ -93,8 +104,8 @@ VAL_MASK_SEED = 12345       # semilla fija de las máscaras de validación (idé
 USE_WANDB     = True
 WANDB_PROJECT = 'TFM-SiPM-imputation'
 
-# Carpeta de salida separada por arquitectura + loss (no se pisan los checkpoints)
-OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}{RUN_SUFFIX}')
+# RUN_TAG / OUTPUT_DIR se resuelven al inicio de main() a partir de MODEL_NAME + MODEL_SIZE
+# + LOSS (para que el override por CLI se refleje sin recalcular nada a mano).
 
 
 # ════════════════════════════════════════════════════════════
@@ -148,7 +159,18 @@ def evaluate(model, loader, loss_fn, device):
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    out_dir = Path(OUTPUT_DIR)
+
+    # ── Resolver tamaño → kwargs del modelo, etiqueta de run y carpeta de salida ──
+    # MODEL_SIZE elige un preset (solo hexcnn); MODEL_KWARGS lo sobrescribe por encima.
+    size_kwargs = {}
+    if MODEL_SIZE:
+        assert MODEL_NAME == 'hexcnn', f"MODEL_SIZE='{MODEL_SIZE}' solo aplica a hexcnn"
+        assert MODEL_SIZE in HEXCNN_SIZES, f"tamaño '{MODEL_SIZE}' no válido: {list(HEXCNN_SIZES)}"
+        size_kwargs = dict(HEXCNN_SIZES[MODEL_SIZE])
+    model_kwargs = {**size_kwargs, **MODEL_KWARGS}
+    size_suffix  = f'_{MODEL_SIZE}' if MODEL_SIZE else ''
+    run_tag      = f'{MODEL_NAME}{size_suffix}'                 # p.ej. hexcnn_l
+    out_dir = Path(RUNS_BASE) / f'imputer_{run_tag}{RUN_SUFFIX}'   # p.ej. imputer_hexcnn_l_mse
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Split limpio train / val / test (fuente única) ───────
@@ -173,9 +195,9 @@ def main():
     print(f"  Val: {len(X_val):,} eventos")
 
     # ── Modelo, optimizador, scheduler, loss ─────────────────
-    model = get_model(MODEL_NAME, **MODEL_KWARGS).to(device)
+    model = get_model(MODEL_NAME, **model_kwargs).to(device)
     n_params = count_parameters(model)
-    print(f"Modelo: {MODEL_NAME}  |  parámetros: {n_params:,}")
+    print(f"Modelo: {run_tag}  |  kwargs: {model_kwargs}  |  parámetros: {n_params:,}")
 
     # ── Weights & Biases (logging al dashboard) ──────────────
     wandb_run = None
@@ -184,9 +206,10 @@ def main():
             import wandb
             wandb_run = wandb.init(
                 project=WANDB_PROJECT,
-                name=f'{MODEL_NAME}{RUN_SUFFIX}',
+                name=f'{run_tag}{RUN_SUFFIX}',
                 config={
-                    'arch': MODEL_NAME, 'model_kwargs': MODEL_KWARGS, 'n_params': n_params,
+                    'arch': MODEL_NAME, 'model_size': MODEL_SIZE or 'default',
+                    'run_tag': run_tag, 'model_kwargs': model_kwargs, 'n_params': n_params,
                     'loss': LOSS, 'huber_delta': HUBER_DELTA,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
@@ -272,7 +295,7 @@ def main():
             # Guardamos pesos + metadatos para poder recargar el modelo después
             torch.save({
                 'model_state':  model.state_dict(),
-                'model_kwargs': MODEL_KWARGS,
+                'model_kwargs': model_kwargs,   # incluye hidden/n_blocks → el eval reconstruye el tamaño correcto
                 'arch':         MODEL_NAME,
                 'epoch':        epoch,
                 'val_loss':     val_loss,
@@ -330,9 +353,12 @@ def plot_curves(history: dict, save_path):
 
 
 if __name__ == '__main__':
-    # Override opcional del modelo por línea de comandos: python train.py hexcnn
-    # (sin argumento usa MODEL_NAME de la config). Recalcula la carpeta de salida.
+    # Override opcional por línea de comandos:
+    #   python train.py hexcnn          → arquitectura (tamaño = default)
+    #   python train.py hexcnn l        → arquitectura + preset de tamaño (s|m|l)
+    # Sin argumentos usa MODEL_NAME/MODEL_SIZE de la config. main() resuelve carpeta y run_tag.
     if len(sys.argv) > 1:
         MODEL_NAME = sys.argv[1]
-        OUTPUT_DIR = str(Path(RUNS_BASE) / f'imputer_{MODEL_NAME}{RUN_SUFFIX}')
+    if len(sys.argv) > 2:
+        MODEL_SIZE = sys.argv[2]
     main()

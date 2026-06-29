@@ -3,11 +3,6 @@ hex_geometry.py
 ===============
 Construye el grafo de vecindad REAL de los 61 SiPM a partir de psipm.tsv.
 
-A diferencia del código antiguo (que emparejaba Ich con celdas axiales en un orden
-arbitrario), aquí los vecinos se calculan de las posiciones físicas reales: dos
-sensores son vecinos si su distancia está dentro del primer anillo hexagonal.
-Esto es lo que da sentido al "prior geométrico" de la HexCNN: agregar información
-de los sensores que de verdad comparten luz con cada uno.
 
 Autor: Miguel Escudero (TFM)
 """

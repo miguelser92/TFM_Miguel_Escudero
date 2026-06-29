@@ -73,6 +73,11 @@ TEST_MAX_EVENTS = 200_000  # eventos por archivo de test (son varios, agregados)
 # (mejor que JPG en plots: sin artefactos de compresión en líneas/texto).
 FIG_FORMATS = ('pdf', 'png')   # p.ej. ('pdf',) solo PDF, ('png',) solo PNG, o ambos
 
+# Weights & Biases: sube métricas + figuras del eval al dashboard (mismo proyecto que el
+# entrenamiento, job_type='eval' para distinguir). Necesita que FIG_FORMATS incluya 'png'.
+USE_WANDB     = True
+WANDB_PROJECT = 'TFM-SiPM-imputation'
+
 # Demo Bad (opcional): imputar el canal muerto real de un archivo Bad
 BAD_FILE    = r'E:\Datos TFM\Bad\Bad\datas016.dat'
 BAD_ICH     = 59          # canal muerto conocido en datas016 (del bad_report)
@@ -614,7 +619,63 @@ def run_eval(ckpt_path, out_dir):
 
     print(f"\n✓ Evaluación terminada. Figuras y métricas en: {out_dir}")
     print(f"  Métricas: {json_path}")
+
+    # ── Subir a W&B (métricas + figuras PNG) ─────────────────
+    if USE_WANDB:
+        log_eval_to_wandb(ckpt_meta.get('arch'), out_dir, metrics)
+
     return metrics
+
+
+def log_eval_to_wandb(arch, out_dir, metrics):
+    """
+    Sube el eval a W&B como run separado (job_type='eval'): las métricas escalares al
+    summary (para que la tabla de runs compare los modelos) y las figuras PNG como imágenes.
+    No reentrena nada: usa lo que run_eval acaba de generar.
+    """
+    try:
+        import wandb
+    except ImportError:
+        print("WARNING: wandb no instalado; no se sube el eval.")
+        return
+
+    out_dir  = Path(out_dir)
+    run_name = out_dir.parent.name                               # p.ej. imputer_hexcnn_l_mse
+    # El sufijo tras 'imputer_<arch>' puede llevar tamaño y/o loss en cualquier combinación:
+    # '', '_mse', '_l', '_l_mse'. Extraemos cada token por su conjunto conocido (robusto al orden).
+    tokens = [t for t in run_name.replace(f'imputer_{arch}', '').split('_') if t]
+    loss   = next((t for t in tokens if t in {'huber', 'mae', 'mse'}), 'huber')
+    size   = next((t for t in tokens if t in {'s', 'm', 'l'}), 'default')
+
+    run = wandb.init(
+        project=WANDB_PROJECT, name=f'{run_name}_eval', job_type='eval',
+        config={'arch': arch, 'loss': loss, 'model_size': size, 'run': run_name,
+                'channel_ich': metrics['channel_ich'], 'test_files': metrics['test_files']},
+    )
+
+    # ── Métricas escalares al summary (el pooled es el de referencia) ──
+    pl  = metrics['aggregated_heldout']['pooled']
+    gsf = metrics['good_single_file']
+    run.summary.update({
+        'pooled/mae_mod':      pl['mae_mod'],
+        'pooled/rmse':         pl['rmse'],
+        'pooled/bias':         pl['bias'],
+        'pooled/dR_p90':       pl['dR_imp']['p90'],
+        'pooled/recovery_p90': pl['recovery_p90_pct'],
+        'good/mae_mod':        gsf['mae_modified'],
+        'good/mae_non':        gsf['mae_non_modified'],
+        'good/bias':           gsf['residual']['bias'],
+    })
+
+    # ── Figuras: subimos todos los PNG de la carpeta eval/ ──
+    pngs = sorted(out_dir.glob('*.png'))
+    if pngs:
+        run.log({p.stem: wandb.Image(str(p)) for p in pngs})
+    else:
+        print("WARNING: no hay PNG en eval/ (¿FIG_FORMATS incluye 'png'?)")
+
+    print(f"  ✓ Eval subido a W&B: {run.url}")
+    run.finish()
 
 
 def main():
@@ -637,4 +698,11 @@ def main():
 
 
 if __name__ == '__main__':
+    # Override opcional del run por línea de comandos: python imputation_eval.py imputer_hexcnn_mse
+    # (sin argumento usa RUN_NAME de la config). Permite evaluar varios con un foreach.
+    if len(sys.argv) > 1:
+        RUN_NAME  = sys.argv[1]
+        RUN_DIR   = Path(RUNS_BASE) / RUN_NAME
+        CKPT_PATH = RUN_DIR / 'best_model.pth'
+        OUT_DIR   = RUN_DIR / 'eval'
     main()
