@@ -85,7 +85,9 @@ N_EPOCHS      = 40
 BATCH_SIZE    = 512
 LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
-PATIENCE      = 8            # early stopping
+PATIENCE      = N_EPOCHS     # = sin corte temprano: entrena el presupuesto completo y
+                            # guarda el mejor checkpoint por val_mae_mod (ver selección abajo).
+                            # Datos infinitos on-the-fly → sin sobreajuste por entrenar las 40.
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
@@ -235,7 +237,7 @@ def main():
     print(f"Loss: {LOSS}")
 
     history = {'train_loss': [], 'val_loss': [], 'val_mae_mod': [], 'val_mae_non': []}
-    best_val = float('inf')
+    best_mae_mod = float('inf')   # seleccionamos el mejor checkpoint por val_mae_mod, NO por val_loss
     epochs_no_improve = 0
     ckpt_path = out_dir / 'best_model.pth'
 
@@ -289,8 +291,12 @@ def main():
                            'val_mae_mod': mae_mod, 'val_mae_non': mae_non, 'lr': cur_lr})
 
         flag = ''
-        if val_loss < best_val:
-            best_val = val_loss
+        # Selección del mejor modelo y early-stopping por val_mae_mod (error en el canal
+        # imputado), NO por val_loss: ésta está dominada por los ~60 canales sanos, satura y
+        # elige la época por ruido (ver bitácora 30/06). Lo que queremos es imputar bien el
+        # canal apagado → medimos por eso.
+        if mae_mod < best_mae_mod:
+            best_mae_mod = mae_mod
             epochs_no_improve = 0
             # Guardamos pesos + metadatos para poder recargar el modelo después
             torch.save({
@@ -322,11 +328,11 @@ def main():
 
     # ── Cerrar W&B: resumen + figura de curvas ───────────────
     if wandb_run is not None:
-        wandb_run.summary['best_val_loss'] = best_val
+        wandb_run.summary['best_val_mae_mod'] = best_mae_mod
         wandb_run.log({'training_curves': wandb.Image(str(out_dir / 'training_curves.png'))})
         wandb_run.finish()
 
-    print(f"\n✓ Entrenamiento terminado. Mejor val_loss: {best_val:.4f}")
+    print(f"\n✓ Entrenamiento terminado. Mejor val_mae_mod: {best_mae_mod:.4f}")
     print(f"  Checkpoint: {ckpt_path}")
 
 
@@ -354,11 +360,16 @@ def plot_curves(history: dict, save_path):
 
 if __name__ == '__main__':
     # Override opcional por línea de comandos:
-    #   python train.py hexcnn          → arquitectura (tamaño = default)
-    #   python train.py hexcnn l        → arquitectura + preset de tamaño (s|m|l)
-    # Sin argumentos usa MODEL_NAME/MODEL_SIZE de la config. main() resuelve carpeta y run_tag.
+    #   python train.py hexcnn            → arquitectura (tamaño y loss = config)
+    #   python train.py hexcnn l          → + preset de tamaño (s|m|l)
+    #   python train.py hexcnn l huber    → + loss (huber|mae|mse)
+    # Cada combinación va a SU carpeta/run (sufijo de loss salvo huber, + sufijo de tamaño)
+    # → no se pisan. Sin argumentos usa la config. main() resuelve carpeta y run_tag.
     if len(sys.argv) > 1:
         MODEL_NAME = sys.argv[1]
     if len(sys.argv) > 2:
         MODEL_SIZE = sys.argv[2]
+    if len(sys.argv) > 3:
+        LOSS = sys.argv[3]
+        RUN_SUFFIX = '' if LOSS == 'huber' else f'_{LOSS}'
     main()
