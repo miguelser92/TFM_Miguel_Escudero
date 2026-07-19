@@ -60,6 +60,37 @@ def get_neighbor_matrix(psipm_path: str = DEFAULT_PSIPM) -> np.ndarray:
     return _CACHE[psipm_path]
 
 
+def get_positions(psipm_path: str = DEFAULT_PSIPM):
+    """Posiciones (x, y) de los 61 SiPM desde psipm.tsv (atajo con la ruta por defecto)."""
+    return load_positions(psipm_path)
+
+
+def build_edge_vectors(x_sipm, y_sipm, nbr: np.ndarray) -> np.ndarray:
+    """
+    Vectores de arista (geometría MÉTRICA) para la HexConv ponderada.
+
+    edge[i, k] = (x_j - x_i, y_j - y_i) del k-ésimo vecino j del sensor i,
+    NORMALIZADO por la distancia mediana entre vecinos (escala ~1 → entrenamiento
+    estable e independiente de las unidades). Las ranuras de padding (nbr = -1)
+    quedan a (0, 0) — se enmascaran igual que en la agregación.
+
+    A diferencia de la matriz de vecindad (solo topología: quién toca con quién),
+    esto le da a la red la DISTANCIA y la DIRECCIÓN reales de cada vecino.
+    """
+    pts = np.column_stack([x_sipm, y_sipm])
+    d, _ = cKDTree(pts).query(pts, k=2)
+    scale = np.median(d[:, 1])                      # distancia típica entre vecinos (mm)
+    N, K = nbr.shape
+    edge = np.zeros((N, K, 2), dtype=np.float32)
+    for i in range(N):
+        for k in range(K):
+            j = nbr[i, k]
+            if j >= 0:
+                edge[i, k, 0] = (pts[j, 0] - pts[i, 0]) / scale
+                edge[i, k, 1] = (pts[j, 1] - pts[i, 1]) / scale
+    return edge
+
+
 if __name__ == '__main__':
     nbr = get_neighbor_matrix()
     n_neigh = (nbr >= 0).sum(axis=1)

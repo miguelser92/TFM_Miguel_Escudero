@@ -40,6 +40,7 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -55,7 +56,8 @@ try:
 except Exception:
     pass
 
-from dataset import SiPMImputationDataset, load_dat_to_dense, get_file_split, N_ACTIVE
+from dataset import (SiPMImputationDataset, load_dat_to_dense, get_file_split,
+                     load_positions, N_ACTIVE)
 from model import get_model, count_parameters
 
 
@@ -91,10 +93,19 @@ PATIENCE      = N_EPOCHS     # = sin corte temprano: entrena el presupuesto comp
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
-# Función de pérdida: 'huber' | 'mae' | 'mse'. Cada una va a SU carpeta y SU run de W&B
-# (se añade el sufijo de la loss, salvo para 'huber' que es la de referencia) → no se pisan.
+# Función de pérdida: 'huber' | 'mae' | 'mse', y variantes PHYSICS-INFORMED con
+# sufijo '_dr' ('mse_dr', 'huber_dr') que AÑADEN a la loss base un término de error
+# de POSICIÓN ΔR² (desplazamiento del centroide del evento al imputar). Cada una va a
+# SU carpeta/run (sufijo de loss, salvo 'huber' que no lleva) → no se pisan.
 LOSS          = 'mse'
 RUN_SUFFIX    = '' if LOSS == 'huber' else f'_{LOSS}'
+
+# Loss physics-informed (solo si LOSS acaba en '_dr'):  loss = base + LAMBDA_DR · ΔR².
+# El ΔR² usa el centroide ponderado por Rch² (el mismo de la posición real). LAMBDA_DR
+# se calibra para que ambos términos tengan magnitud comparable al inicio ("equilibrada").
+PSIPM_PATH    = r'E:\Datos TFM\psipm.tsv'
+LAMBDA_DR     = 0.01     # calibrado (smoke test): equilibra λ·ΔR² ≈ MSE al inicio
+LAMBDA_EN     = 0.7      # peso del término de energía (|corrimiento medio de RchT| = |bias|); calibrado 50/50 al arranque (smoke test: MSE/|Δenergía|~0.69)
 
 # Split limpio (fuente única en dataset.get_file_split): train / val / test disjuntos
 N_VAL_FILES   = 5
@@ -114,20 +125,52 @@ WANDB_PROJECT = 'TFM-SiPM-imputation'
 #  ENTRENAMIENTO
 # ════════════════════════════════════════════════════════════
 
-def evaluate(model, loader, loss_fn, device):
-    """
-    Evalúa el modelo en un loader y devuelve (loss, mae_modified, mae_nonmod).
+def _centroid(X, xs_t, ys_t, eps=1e-6):
+    """Centroide XY ponderado por Rch² (diferenciable). X:(B,61) → (px, py):(B,)."""
+    w    = X ** 2
+    wsum = w.sum(dim=1) + eps
+    return (w * xs_t).sum(dim=1) / wsum, (w * ys_t).sum(dim=1) / wsum
 
-    El MAE se calcula SOLO sobre el canal imputado, separando las dos clases:
-      - modified:     mide la capacidad de imputar de verdad
-      - non-modified: mide la tasa de falsa corrección (debería ser ~0)
+
+def delta_r(out, target, ch, xs_t, ys_t):
+    """
+    Desplazamiento ΔR (mm) por muestra del centroide al imputar el canal 'ch' con la
+    predicción de la red, respecto al centroide del vector original. Imita el eval:
+    los 60 canales sanos se dejan reales (target); solo el canal apagado toma out[ch].
+    Diferenciable → el gradiente fluye por out[ch]. Devuelve ΔR (B,).
+    """
+    mask  = F.one_hot(ch, num_classes=target.shape[1]).to(target.dtype)   # (B,61)
+    x_imp = target * (1 - mask) + out * mask            # canal apagado ← predicción
+    px_o, py_o = _centroid(target, xs_t, ys_t)          # posición original
+    px_i, py_i = _centroid(x_imp,  xs_t, ys_t)          # posición imputada
+    return torch.sqrt((px_i - px_o) ** 2 + (py_i - py_o) ** 2 + 1e-12)
+
+
+def energy_shift(out, target, ch):
+    """
+    |corrimiento medio del espectro| por batch: |media(out[ch] − target[ch])|. Como los
+    60 canales sanos no cambian, RchT_imp − RchT_orig = out[ch] − target[ch]; su media es
+    el BIAS de energía. Penaliza el SESGO sistemático (lo que ni el MSE ni el ΔR ven →
+    ortogonal), forzando la conservación del espectro a primer orden. Diferenciable, por batch.
+    """
+    rows = torch.arange(out.shape[0], device=out.device)
+    return (out[rows, ch] - target[rows, ch]).mean().abs()
+
+
+def evaluate(model, loader, loss_fn, device, xs_t, ys_t):
+    """
+    Evalúa el modelo y devuelve (loss, mae_modified, mae_nonmod, dr_modified).
+
+    El MAE se calcula SOLO sobre el canal imputado, separando modified (capacidad real
+    de imputar) y non-modified (falsa corrección, ~0). dr_modified = ΔR medio de posición
+    en los eventos modified (la métrica física, para monitorear la loss physics-informed).
     """
     model.eval()
-    total_loss = 0.0
-    n_total    = 0
-    # acumuladores de error absoluto en el canal imputado por clase
+    total_loss, n_total = 0.0, 0
     err_mod, n_mod = 0.0, 0
     err_non, n_non = 0.0, 0
+    err_dr = 0.0                                  # ΔR acumulado sobre modified
+    signed_mod = 0.0                              # error CON signo (para el bias) sobre modified
 
     with torch.no_grad():   # sin grafo de gradientes: más rápido y menos memoria
         for x_in, target, ch, is_mod in loader:
@@ -137,26 +180,27 @@ def evaluate(model, loader, loss_fn, device):
             is_mod = is_mod.to(device)
 
             out  = model(x_in)                       # (B, 61)
-            loss = loss_fn(out, target)              # Huber sobre los 61 canales
+            loss = loss_fn(out, target)              # loss base sobre los 61 canales
             bs   = len(target)
             total_loss += loss.item() * bs
             n_total    += bs
 
-            # Error absoluto en el canal imputado de cada muestra
-            # out[arange(B), ch] selecciona la predicción del canal apagado de cada fila
             rows = torch.arange(bs, device=device)
-            pred_ch = out[rows, ch]
-            true_ch = target[rows, ch]
-            abs_err = (pred_ch - true_ch).abs()
+            signed  = out[rows, ch] - target[rows, ch]     # error con signo del canal
+            dr = delta_r(out, target, ch, xs_t, ys_t)
 
             m = is_mod.bool()
-            err_mod += abs_err[m].sum().item();  n_mod += m.sum().item()
-            err_non += abs_err[~m].sum().item(); n_non += (~m).sum().item()
+            err_mod += signed[m].abs().sum().item();  n_mod += m.sum().item()
+            err_non += signed[~m].abs().sum().item(); n_non += (~m).sum().item()
+            err_dr  += dr[m].sum().item()
+            signed_mod += signed[m].sum().item()
 
     loss     = total_loss / max(n_total, 1)
     mae_mod  = err_mod / max(n_mod, 1)
     mae_non  = err_non / max(n_non, 1)
-    return loss, mae_mod, mae_non
+    dr_mod   = err_dr / max(n_mod, 1)
+    bias_mod = signed_mod / max(n_mod, 1)
+    return loss, mae_mod, mae_non, dr_mod, bias_mod
 
 
 def main():
@@ -212,7 +256,8 @@ def main():
                 config={
                     'arch': MODEL_NAME, 'model_size': MODEL_SIZE or 'default',
                     'run_tag': run_tag, 'model_kwargs': model_kwargs, 'n_params': n_params,
-                    'loss': LOSS, 'huber_delta': HUBER_DELTA,
+                    'loss': LOSS, 'physics_term': LOSS.split('_')[1] if '_' in LOSS else None,
+                    'lambda_dr': LAMBDA_DR, 'lambda_en': LAMBDA_EN, 'huber_delta': HUBER_DELTA,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
                     'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
@@ -225,18 +270,32 @@ def main():
     optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = CosineAnnealingLR(optimizer, T_max=N_EPOCHS, eta_min=LR / 100)
 
-    # Pérdida según el flag LOSS de la config
-    if LOSS == 'huber':
+    # Pérdida base + término physics-informed opcional. LOSS = '<base>[_<term>]':
+    #   base:  'huber' | 'mae' | 'mse'
+    #   term:  'dr' (ΔR², posición)  |  'en' (|Δenergía|, sesgo del espectro)  |  ninguno
+    parts     = LOSS.split('_')
+    base_name = parts[0]
+    phys_term = parts[1] if len(parts) > 1 else None
+    assert phys_term in (None, 'dr', 'en'), f"término physics '{phys_term}' no válido ('dr'|'en')"
+    if base_name == 'huber':
         loss_fn = nn.HuberLoss(delta=HUBER_DELTA)
-    elif LOSS == 'mae':
+    elif base_name == 'mae':
         loss_fn = nn.L1Loss()       # MAE = error absoluto medio
-    elif LOSS == 'mse':
+    elif base_name == 'mse':
         loss_fn = nn.MSELoss()
     else:
-        raise ValueError(f"LOSS '{LOSS}' no reconocida (usa 'huber', 'mae' o 'mse')")
-    print(f"Loss: {LOSS}")
+        raise ValueError(f"LOSS '{LOSS}' no reconocida (base: 'huber'|'mae'|'mse', term: '_dr'|'_en')")
+    lam  = {'dr': LAMBDA_DR, 'en': LAMBDA_EN}.get(phys_term)
+    desc = {'dr': f'{LAMBDA_DR}·ΔR²', 'en': f'{LAMBDA_EN}·|Δenergía|'}.get(phys_term, '')
+    print(f"Loss: {base_name}" + (f"  +  {desc}  (physics-informed)" if phys_term else ""))
 
-    history = {'train_loss': [], 'val_loss': [], 'val_mae_mod': [], 'val_mae_non': []}
+    # Posiciones de los SiPM (para el término ΔR), como tensores en el device
+    xs_np, ys_np = load_positions(PSIPM_PATH)
+    xs_t = torch.tensor(xs_np, dtype=torch.float32, device=device)
+    ys_t = torch.tensor(ys_np, dtype=torch.float32, device=device)
+
+    history = {'train_loss': [], 'train_phys': [], 'val_loss': [],
+               'val_mae_mod': [], 'val_mae_non': [], 'val_dr': [], 'val_bias': []}
     best_mae_mod = float('inf')   # seleccionamos el mejor checkpoint por val_mae_mod, NO por val_loss
     epochs_no_improve = 0
     ckpt_path = out_dir / 'best_model.pth'
@@ -256,14 +315,21 @@ def main():
 
         # ── Una época de entrenamiento ───────────────────────
         model.train()
-        run_loss, n_seen = 0.0, 0
+        run_loss, run_phys, n_seen = 0.0, 0.0, 0
         for x_in, target, ch, is_mod in train_loader:
             x_in   = x_in.to(device)
             target = target.to(device)
 
             optimizer.zero_grad()
             out  = model(x_in)
-            loss = loss_fn(out, target)
+            loss = loss_fn(out, target)                       # término base (MSE/Huber/MAE)
+            if phys_term == 'dr':
+                extra = (delta_r(out, target, ch.to(device), xs_t, ys_t) ** 2).mean()   # ΔR²
+            elif phys_term == 'en':
+                extra = energy_shift(out, target, ch.to(device))                        # |Δenergía|
+            if phys_term:
+                loss = loss + lam * extra
+                run_phys += extra.item() * len(target)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # evita exploding gradients
             optimizer.step()
@@ -274,21 +340,26 @@ def main():
         cur_lr = optimizer.param_groups[0]['lr']   # lr usado en esta época (antes del step)
         scheduler.step()
         train_loss = run_loss / max(n_seen, 1)
+        train_phys = run_phys / max(n_seen, 1)
 
         # ── Validación ───────────────────────────────────────
         # Re-sembramos el rng del val_ds para que las máscaras sean IDÉNTICAS cada
         # época (si no, el rng con estado deriva y val se mide sobre canales distintos).
         val_ds.rng = np.random.default_rng(VAL_MASK_SEED)
-        val_loss, mae_mod, mae_non = evaluate(model, val_loader, loss_fn, device)
+        val_loss, mae_mod, mae_non, val_dr, val_bias = evaluate(model, val_loader, loss_fn, device, xs_t, ys_t)
 
         history['train_loss'].append(train_loss)
+        history['train_phys'].append(train_phys)
         history['val_loss'].append(val_loss)
         history['val_mae_mod'].append(mae_mod)
         history['val_mae_non'].append(mae_non)
+        history['val_dr'].append(val_dr)
+        history['val_bias'].append(val_bias)
 
         if wandb_run is not None:
-            wandb_run.log({'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss,
-                           'val_mae_mod': mae_mod, 'val_mae_non': mae_non, 'lr': cur_lr})
+            wandb_run.log({'epoch': epoch, 'train_loss': train_loss, 'train_phys': train_phys,
+                           'val_loss': val_loss, 'val_mae_mod': mae_mod, 'val_mae_non': mae_non,
+                           'val_dr': val_dr, 'val_bias': val_bias, 'lr': cur_lr})
 
         flag = ''
         # Selección del mejor modelo y early-stopping por val_mae_mod (error en el canal
@@ -307,6 +378,8 @@ def main():
                 'val_loss':     val_loss,
                 'val_mae_mod':  mae_mod,
                 'val_mae_non':  mae_non,
+                'val_dr':       val_dr,
+                'val_bias':     val_bias,
             }, ckpt_path)
             flag = '  ✓ best'
         else:
@@ -314,7 +387,7 @@ def main():
 
         print(f"Epoch {epoch:3d}/{N_EPOCHS} | "
               f"train={train_loss:.4f} val={val_loss:.4f} | "
-              f"MAE(mod)={mae_mod:.4f} MAE(non)={mae_non:.4f} | "
+              f"MAE(mod)={mae_mod:.4f} MAE(non)={mae_non:.4f} dR={val_dr:.4f} bias={val_bias:+.4f} | "
               f"{f_train.name} | {time.time()-t0:.1f}s{flag}")
 
         if epochs_no_improve >= PATIENCE:
@@ -362,14 +435,48 @@ if __name__ == '__main__':
     # Override opcional por línea de comandos:
     #   python train.py hexcnn            → arquitectura (tamaño y loss = config)
     #   python train.py hexcnn l          → + preset de tamaño (s|m|l)
-    #   python train.py hexcnn l huber    → + loss (huber|mae|mse)
+    #   python train.py hexcnn l huber    → + loss (huber|mae|mse; '_dr' = +ΔR², p.ej. mse_dr)
     # Cada combinación va a SU carpeta/run (sufijo de loss salvo huber, + sufijo de tamaño)
     # → no se pisan. Sin argumentos usa la config. main() resuelve carpeta y run_tag.
-    if len(sys.argv) > 1:
-        MODEL_NAME = sys.argv[1]
-    if len(sys.argv) > 2:
-        MODEL_SIZE = sys.argv[2]
-    if len(sys.argv) > 3:
-        LOSS = sys.argv[3]
+    #   python train.py hexcnn s mse --shuffle     → ablación: grafo barajado (control de geometría)
+    #   python train.py hexcnn s mse --shuffle 7   → idem con otra seed de barajado
+    #   python train.py hexcnn s mse --geom vec    → HexConv con geometría métrica (Δx,Δy, anisótropo)
+    #   python train.py hexcnn s mse --geom dist   → idem pero solo distancia (isótropo)
+    argv = sys.argv[1:]
+    shuffle_seed = None
+    if '--shuffle' in argv:
+        i = argv.index('--shuffle')
+        if i + 1 < len(argv) and argv[i + 1].isdigit():
+            shuffle_seed = int(argv[i + 1]); del argv[i:i + 2]
+        else:
+            shuffle_seed = 0; del argv[i]
+        MODEL_KWARGS = {**MODEL_KWARGS, 'shuffle_seed': shuffle_seed}
+
+    geom = None
+    if '--geom' in argv:
+        i = argv.index('--geom')
+        assert i + 1 < len(argv) and argv[i + 1] in ('vec', 'dist'), "uso: --geom vec|dist"
+        geom = argv[i + 1]; del argv[i:i + 2]
+        MODEL_KWARGS = {**MODEL_KWARGS, 'geom': geom}
+
+    # --tag STR: etiqueta libre al final del nombre de carpeta (para réplicas sin pisar).
+    tag = None
+    if '--tag' in argv:
+        i = argv.index('--tag')
+        assert i + 1 < len(argv), "uso: --tag NOMBRE"
+        tag = argv[i + 1]; del argv[i:i + 2]
+
+    if len(argv) > 0:
+        MODEL_NAME = argv[0]
+    if len(argv) > 1:
+        MODEL_SIZE = argv[1]
+    if len(argv) > 2:
+        LOSS = argv[2]
         RUN_SUFFIX = '' if LOSS == 'huber' else f'_{LOSS}'
+    if shuffle_seed is not None:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_shuf{shuffle_seed}'   # carpeta/run propios → no pisa el real
+    if geom is not None:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
+    if tag is not None:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_{tag}'                # réplica u otra variante → carpeta propia
     main()

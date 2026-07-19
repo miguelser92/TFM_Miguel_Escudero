@@ -18,12 +18,36 @@ normalizado puede superar 1.0 en el canal imputado (ver dataset.py).
 Autor: Miguel Escudero (TFM)
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from dataset import N_ACTIVE
-from hex_geometry import get_neighbor_matrix
+from hex_geometry import get_neighbor_matrix, get_positions, build_edge_vectors
+
+
+def _shuffle_graph(nbr: np.ndarray, seed: int) -> np.ndarray:
+    """
+    Ablación de geometría: devuelve un grafo ISOMORFO al real (misma topología,
+    mismos grados) pero con las etiquetas de los nodos PERMUTADAS. Es decir, el
+    cableado sigue siendo el de un hexágono, pero ya NO se corresponde con la
+    posición física de cada sensor.
+
+    Control científico para la pregunta "¿HexCNN usa la geometría?": si el modelo
+    con el grafo barajado rinde igual que con el real, la adyacencia física no
+    aportaba nada (era solo capacidad); si empeora, el prior geométrico sí importa.
+    """
+    N = nbr.shape[0]
+    rng  = np.random.default_rng(seed)
+    perm = rng.permutation(N)          # perm[old] = nueva etiqueta del nodo old
+    inv  = np.argsort(perm)            # inv[new] = nodo old que ahora se llama new
+    out  = np.full_like(nbr, -1)
+    for new_i in range(N):
+        old_i = inv[new_i]
+        for k, j in enumerate(nbr[old_i]):
+            out[new_i, k] = perm[j] if j >= 0 else -1
+    return out
 
 
 class ResidualBlock(nn.Module):
@@ -145,7 +169,7 @@ class HexConv(nn.Module):
     Es una graph-convolution restringida al grafo de vecindad del detector.
     """
 
-    def __init__(self, in_f: int, out_f: int, neighbor_matrix):
+    def __init__(self, in_f: int, out_f: int, neighbor_matrix, edge_vec=None, geom=None):
         super().__init__()
         # Dos transformaciones lineales con pesos COMPARTIDOS por los 61 nodos (esto es
         # lo que la hace "convolución": el mismo kernel en todas partes):
@@ -155,6 +179,22 @@ class HexConv(nn.Module):
         # Grafo de vecindad (61,6) como BUFFER: tensor NO entrenable que se mueve con
         # .to(device) y se guarda en el checkpoint → el grafo viaja con el modelo.
         self.register_buffer('nbr', torch.as_tensor(neighbor_matrix, dtype=torch.long))
+
+        # ── Geometría MÉTRICA (opcional) ──
+        # geom=None  → agregación isótropa clásica (media plana de vecinos).
+        # geom='vec' → filtro continuo f(Δx, Δy): pesa cada vecino por su posición
+        #              relativa (permite ANISOTROPÍA).
+        # geom='dist'→ filtro continuo f(|Δr|): pesa solo por distancia (isótropo).
+        self.geom = geom
+        if geom is not None:
+            assert edge_vec is not None, "geom requiere edge_vec (vectores de arista)"
+            # edge (61,6,2) como buffer: viaja con el modelo, no entrena.
+            self.register_buffer('edge', torch.as_tensor(edge_vec, dtype=torch.float32))
+            in_geom = 2 if geom == 'vec' else 1
+            # Mini-MLP que convierte la geometría de la arista en un filtro por feature.
+            self.filter_net = nn.Sequential(
+                nn.Linear(in_geom, out_f), nn.GELU(), nn.Linear(out_f, out_f),
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x : (B, N, Fin) → (B, N, out_f)"""
@@ -174,12 +214,25 @@ class HexConv(nn.Module):
         nb = x_pad[:, gather_idx, :]                          # (B, N, 6, Fin): features de los 6 vecinos
         # Máscara de qué ranuras son vecinos REALES (1) vs padding (0), lista para broadcasting.
         valid = (self.nbr >= 0).to(x.dtype).view(1, N, -1, 1) # (1, N, 6, 1)
-        # Media SOLO sobre los vecinos reales: anulamos el padding (nb*valid) y dividimos por
-        # cuántos vecinos reales hay (3-6 según el nodo). clamp(min=1) evita dividir por 0.
-        nb_mean = (nb * valid).sum(dim=2) / valid.sum(dim=2).clamp(min=1)  # (B, N, Fin)
+        cnt = valid.sum(dim=2).clamp(min=1)                  # (B, N, 1): nº vecinos reales
 
-        # ── La convolución: nodo central + media de vecinos, con sus pesos compartidos ──
-        out = self.lin_self(x) + self.lin_neigh(nb_mean)     # (B, N, out_f)
+        if self.geom is None:
+            # ── Agregación ISÓTROPA clásica: media plana de los vecinos ──
+            # Media SOLO sobre los vecinos reales: anulamos el padding (nb*valid) y dividimos
+            # por cuántos vecinos reales hay (3-6 según el nodo). clamp(min=1) evita /0.
+            nb_mean = (nb * valid).sum(dim=2) / cnt          # (B, N, Fin)
+            neigh = self.lin_neigh(nb_mean)                  # (B, N, out_f)
+        else:
+            # ── Agregación MÉTRICA: cada vecino se transforma y se pesa por un filtro
+            #    continuo generado de su vector de arista (distancia/dirección reales) ──
+            msg = self.lin_neigh(nb)                          # (B, N, 6, out_f): mensaje por vecino
+            geom_in = self.edge if self.geom == 'vec' else self.edge.norm(dim=-1, keepdim=True)
+            filt = self.filter_net(geom_in).unsqueeze(0)     # (1, N, 6, out_f): filtro geométrico
+            msg = msg * filt                                 # modula cada vecino por su geometría
+            neigh = (msg * valid).sum(dim=2) / cnt           # (B, N, out_f): media ponderada real
+
+        # ── La convolución: nodo central + agregación de vecinos, pesos compartidos ──
+        out = self.lin_self(x) + neigh                       # (B, N, out_f)
         # BatchNorm1d espera (muestras, features): aplanamos batch y nodos, normalizamos, deshacemos.
         out = self.bn(out.reshape(B * N, -1)).reshape(B, N, -1)
         return F.gelu(out)   # no-linealidad suave
@@ -188,10 +241,11 @@ class HexConv(nn.Module):
 class HexResBlock(nn.Module):
     """Bloque residual de dos HexConv sobre la malla hexagonal."""
 
-    def __init__(self, dim: int, neighbor_matrix, dropout: float = 0.1):
+    def __init__(self, dim: int, neighbor_matrix, dropout: float = 0.1,
+                 edge_vec=None, geom=None):
         super().__init__()
-        self.c1   = HexConv(dim, dim, neighbor_matrix)   # 1ª convolución hexagonal (mantiene la dimensión)
-        self.c2   = HexConv(dim, dim, neighbor_matrix)   # 2ª convolución hexagonal
+        self.c1   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom)   # 1ª convolución hexagonal (mantiene la dimensión)
+        self.c2   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom)   # 2ª convolución hexagonal
         self.drop = nn.Dropout(dropout)                  # regularización entre las dos convs
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -212,11 +266,23 @@ class HexCNNImputer(nn.Module):
     """
 
     def __init__(self, hidden: int = 48, n_blocks: int = 4, dropout: float = 0.1,
-                 psipm_path: str | None = None):
+                 psipm_path: str | None = None, shuffle_seed: int | None = None,
+                 geom: str | None = None):
         super().__init__()
         # Grafo de vecindad real (61,6), calculado desde psipm.tsv (cacheado). Es el
         # "cableado" que comparten todas las HexConv de abajo.
         nbr = get_neighbor_matrix(psipm_path) if psipm_path else get_neighbor_matrix()
+        # Ablación de geometría (control): si shuffle_seed != None, barajamos las
+        # etiquetas del grafo → misma topología, pero desligada de la posición física.
+        if shuffle_seed is not None:
+            nbr = _shuffle_graph(np.asarray(nbr), shuffle_seed)
+
+        # Geometría MÉTRICA (opcional): vectores de arista (Δx, Δy) alineados con nbr.
+        # geom='vec' (anisótropo) | 'dist' (isótropo) | None (media plana clásica).
+        edge_vec = None
+        if geom is not None:
+            xs, ys = get_positions(psipm_path) if psipm_path else get_positions()
+            edge_vec = build_edge_vectors(xs, ys, np.asarray(nbr))
 
         # Stem: proyecta las 2 features de cada nodo (carga, máscara) → 'hidden' dimensiones
         self.stem    = nn.Linear(2, hidden)
@@ -225,7 +291,7 @@ class HexCNNImputer(nn.Module):
         # Pila de bloques residuales hexagonales (cada uno = 2 HexConv). Más bloques =
         # mayor campo receptivo (cada nodo "ve" más lejos en el detector).
         self.blocks = nn.ModuleList([
-            HexResBlock(hidden, nbr, dropout) for _ in range(n_blocks)
+            HexResBlock(hidden, nbr, dropout, edge_vec, geom) for _ in range(n_blocks)
         ])
 
         self.head = nn.Linear(hidden, 1)   # cabeza: de 'hidden' features → 1 escalar por nodo (la carga)

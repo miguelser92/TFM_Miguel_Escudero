@@ -71,7 +71,7 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 # la métrica "real". Se puede limitar por CLI con --events N (p.ej. --events 200000
 # para reproducir las campañas antiguas). OJO: con todos los eventos cada modelo
 # tarda ~4-5x más que con 200k.
-TEST_MAX_EVENTS = None
+TEST_MAX_EVENTS = 750000
 
 USE_WANDB     = True
 WANDB_PROJECT = 'TFM-SiPM-imputation'
