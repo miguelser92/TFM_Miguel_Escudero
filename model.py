@@ -257,17 +257,46 @@ class HexResBlock(nn.Module):
         return x + h
 
 
+class NodeAttnBlock(nn.Module):
+    """
+    Bloque de auto-atención GLOBAL sobre los 61 nodos (encoder transformer pre-norm).
+
+    A diferencia de la HexConv (local: cada nodo solo habla con sus 6 vecinos), aquí
+    cada sensor atiende a TODOS los demás en un solo salto → contexto de largo alcance
+    (el flood map entero). 61 nodos es diminuto, así que la atención O(61²) es barata.
+    """
+
+    def __init__(self, dim: int, n_heads: int = 4, dropout: float = 0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(dim)
+        self.attn  = nn.MultiheadAttention(dim, n_heads, dropout=dropout, batch_first=True)
+        self.norm2 = nn.LayerNorm(dim)
+        self.ff    = nn.Sequential(
+            nn.Linear(dim, 2 * dim), nn.GELU(), nn.Dropout(dropout), nn.Linear(2 * dim, dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x : (B, N, dim) → (B, N, dim)"""
+        h = self.norm1(x)
+        x = x + self.attn(h, h, h, need_weights=False)[0]   # mezcla global (residual)
+        x = x + self.ff(self.norm2(x))                       # feed-forward por nodo (residual)
+        return x
+
+
 class HexCNNImputer(nn.Module):
     """
     CNN hexagonal para imputación, con prior geométrico de las posiciones reales.
 
     Cada sensor es un nodo del grafo; la red propaga información entre vecinos
     físicos y reconstruye un escalar por nodo (la carga). Salida lineal (61).
+
+    Opcional (attn>0): tras los bloques HexConv locales se añaden 'attn' bloques de
+    auto-atención global → híbrido local (geometría) + global (contexto largo alcance).
     """
 
     def __init__(self, hidden: int = 48, n_blocks: int = 4, dropout: float = 0.1,
                  psipm_path: str | None = None, shuffle_seed: int | None = None,
-                 geom: str | None = None):
+                 geom: str | None = None, attn: int = 0, n_heads: int = 4):
         super().__init__()
         # Grafo de vecindad real (61,6), calculado desde psipm.tsv (cacheado). Es el
         # "cableado" que comparten todas las HexConv de abajo.
@@ -294,6 +323,14 @@ class HexCNNImputer(nn.Module):
             HexResBlock(hidden, nbr, dropout, edge_vec, geom) for _ in range(n_blocks)
         ])
 
+        # ── Atención global (opcional) ──
+        # Embedding posicional aprendido por nodo (61×hidden): da identidad/posición a
+        # cada sensor para que la atención sepa "quién es quién". Se suma antes de atender.
+        self.attn_blocks = nn.ModuleList([
+            NodeAttnBlock(hidden, n_heads, dropout) for _ in range(attn)
+        ])
+        self.pos_emb = nn.Parameter(torch.zeros(1, N_ACTIVE, hidden)) if attn > 0 else None
+
         self.head = nn.Linear(hidden, 1)   # cabeza: de 'hidden' features → 1 escalar por nodo (la carga)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -309,6 +346,12 @@ class HexCNNImputer(nn.Module):
 
         for blk in self.blocks:
             h = blk(h)                                       # (B, 61, hidden): propaga info entre vecinos
+
+        # Atención global tras el prior local: cada nodo mezcla con todos los demás.
+        if self.pos_emb is not None:
+            h = h + self.pos_emb                             # info de posición/identidad por nodo
+            for ablk in self.attn_blocks:
+                h = ablk(h)                                  # (B, 61, hidden): contexto largo alcance
 
         # head → (B, 61, 1); squeeze(-1) quita la última dimensión → (B, 61) cargas reconstruidas
         return self.head(h).squeeze(-1)

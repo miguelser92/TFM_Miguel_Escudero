@@ -459,6 +459,18 @@ if __name__ == '__main__':
         geom = argv[i + 1]; del argv[i:i + 2]
         MODEL_KWARGS = {**MODEL_KWARGS, 'geom': geom}
 
+    # --attn N [--heads H]: añade N bloques de auto-atención global tras las HexConv.
+    attn = 0
+    if '--attn' in argv:
+        i = argv.index('--attn')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --attn N"
+        attn = int(argv[i + 1]); del argv[i:i + 2]
+        MODEL_KWARGS = {**MODEL_KWARGS, 'attn': attn}
+        if '--heads' in argv:
+            j = argv.index('--heads')
+            assert j + 1 < len(argv) and argv[j + 1].isdigit(), "uso: --heads H"
+            MODEL_KWARGS = {**MODEL_KWARGS, 'n_heads': int(argv[j + 1])}; del argv[j:j + 2]
+
     # --tag STR: etiqueta libre al final del nombre de carpeta (para réplicas sin pisar).
     tag = None
     if '--tag' in argv:
@@ -477,6 +489,8 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_shuf{shuffle_seed}'   # carpeta/run propios → no pisa el real
     if geom is not None:
         RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
+    if attn > 0:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_attn{attn}'           # p.ej. _attn2 → carpeta propia
     if tag is not None:
         RUN_SUFFIX = f'{RUN_SUFFIX}_{tag}'                # réplica u otra variante → carpeta propia
     main()
