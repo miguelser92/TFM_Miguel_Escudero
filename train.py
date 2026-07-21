@@ -107,6 +107,14 @@ PSIPM_PATH    = r'E:\Datos TFM\psipm.tsv'
 LAMBDA_DR     = 0.01     # calibrado (smoke test): equilibra λ·ΔR² ≈ MSE al inicio
 LAMBDA_EN     = 0.7      # peso del término de energía (|corrimiento medio de RchT| = |bias|); calibrado 50/50 al arranque (smoke test: MSE/|Δenergía|~0.69)
 
+# ── MULTI-DEAD (punto 3 del roadmap) ──
+# N_DEAD: 1 = un canal muerto (histórico) | int = k fijo | (kmin,kmax) = k variable por
+# muestra (curriculum mezclado → un solo modelo robusto a varios tamaños de fallo).
+# DEAD_MODE: 'cluster' = los muertos son CONTIGUOS (caso físico: sombras, serie, térmico)
+#            'scatter' = dispersos por el detector (CONTROL sin contigüidad).
+N_DEAD        = 1
+DEAD_MODE     = 'cluster'
+
 # Split limpio (fuente única en dataset.get_file_split): train / val / test disjuntos
 N_VAL_FILES   = 5
 N_TEST_FILES  = 5           # reservado: NUNCA se toca (ni train ni validación)
@@ -132,29 +140,39 @@ def _centroid(X, xs_t, ys_t, eps=1e-6):
     return (w * xs_t).sum(dim=1) / wsum, (w * ys_t).sum(dim=1) / wsum
 
 
-def delta_r(out, target, ch, xs_t, ys_t):
+def dead_err(out, target, dead):
     """
-    Desplazamiento ΔR (mm) por muestra del centroide al imputar el canal 'ch' con la
-    predicción de la red, respecto al centroide del vector original. Imita el eval:
-    los 60 canales sanos se dejan reales (target); solo el canal apagado toma out[ch].
-    Diferenciable → el gradiente fluye por out[ch]. Devuelve ΔR (B,).
+    Error del/los canal(es) imputado(s) por muestra. 'dead' es (B,61) con 1 en los
+    canales apagados. Devuelve (signed_mean, abs_mean), ambos (B,): media del error
+    CON signo y del |error| sobre los canales muertos de cada muestra.
+    Para k=1 coincide exactamente con el antiguo out[rows,ch] − target[rows,ch].
     """
-    mask  = F.one_hot(ch, num_classes=target.shape[1]).to(target.dtype)   # (B,61)
-    x_imp = target * (1 - mask) + out * mask            # canal apagado ← predicción
+    cnt  = dead.sum(dim=1).clamp(min=1)                  # nº de muertos por muestra
+    diff = (out - target) * dead                         # error solo en los muertos
+    return diff.sum(dim=1) / cnt, diff.abs().sum(dim=1) / cnt
+
+
+def delta_r(out, target, dead, xs_t, ys_t):
+    """
+    Desplazamiento ΔR (mm) por muestra del centroide al imputar los canales muertos con
+    la predicción de la red, respecto al centroide del vector original. Imita el eval:
+    los canales sanos se dejan reales (target); los apagados toman out.
+    Diferenciable → el gradiente fluye por out. Devuelve ΔR (B,).
+    """
+    x_imp = target * (1 - dead) + out * dead            # canales apagados ← predicción
     px_o, py_o = _centroid(target, xs_t, ys_t)          # posición original
     px_i, py_i = _centroid(x_imp,  xs_t, ys_t)          # posición imputada
     return torch.sqrt((px_i - px_o) ** 2 + (py_i - py_o) ** 2 + 1e-12)
 
 
-def energy_shift(out, target, ch):
+def energy_shift(out, target, dead):
     """
-    |corrimiento medio del espectro| por batch: |media(out[ch] − target[ch])|. Como los
-    60 canales sanos no cambian, RchT_imp − RchT_orig = out[ch] − target[ch]; su media es
-    el BIAS de energía. Penaliza el SESGO sistemático (lo que ni el MSE ni el ΔR ven →
-    ortogonal), forzando la conservación del espectro a primer orden. Diferenciable, por batch.
+    |corrimiento medio del espectro| por batch. Como los canales sanos no cambian,
+    RchT_imp − RchT_orig = suma del error en los muertos; su media es el BIAS de energía.
+    OJO: probado y DESCARTADO (empeora mucho) — al penalizar la media FIRMADA del batch,
+    la red compensa errores entre eventos y destroza la precisión por evento.
     """
-    rows = torch.arange(out.shape[0], device=out.device)
-    return (out[rows, ch] - target[rows, ch]).mean().abs()
+    return dead_err(out, target, dead)[0].mean().abs()
 
 
 def evaluate(model, loader, loss_fn, device, xs_t, ys_t):
@@ -173,10 +191,10 @@ def evaluate(model, loader, loss_fn, device, xs_t, ys_t):
     signed_mod = 0.0                              # error CON signo (para el bias) sobre modified
 
     with torch.no_grad():   # sin grafo de gradientes: más rápido y menos memoria
-        for x_in, target, ch, is_mod in loader:
+        for x_in, target, dead, is_mod in loader:
             x_in   = x_in.to(device)
             target = target.to(device)
-            ch     = ch.to(device)
+            dead   = dead.to(device)
             is_mod = is_mod.to(device)
 
             out  = model(x_in)                       # (B, 61)
@@ -185,13 +203,12 @@ def evaluate(model, loader, loss_fn, device, xs_t, ys_t):
             total_loss += loss.item() * bs
             n_total    += bs
 
-            rows = torch.arange(bs, device=device)
-            signed  = out[rows, ch] - target[rows, ch]     # error con signo del canal
-            dr = delta_r(out, target, ch, xs_t, ys_t)
+            signed, absol = dead_err(out, target, dead)   # error (con signo / absoluto)
+            dr = delta_r(out, target, dead, xs_t, ys_t)
 
             m = is_mod.bool()
-            err_mod += signed[m].abs().sum().item();  n_mod += m.sum().item()
-            err_non += signed[~m].abs().sum().item(); n_non += (~m).sum().item()
+            err_mod += absol[m].sum().item();  n_mod += m.sum().item()
+            err_non += absol[~m].sum().item(); n_non += (~m).sum().item()
             err_dr  += dr[m].sum().item()
             signed_mod += signed[m].sum().item()
 
@@ -235,7 +252,9 @@ def main():
         [load_dat_to_dense(f, max_events=MAX_EVENTS // len(val_files)) for f in val_files],
         axis=0,
     )
-    val_ds = SiPMImputationDataset(X_val, seed=VAL_MASK_SEED)   # seed fijo: val reproducible
+    # seed fijo: val reproducible. Mismo régimen de muertos que el entrenamiento.
+    val_ds = SiPMImputationDataset(X_val, seed=VAL_MASK_SEED,
+                                   n_dead=N_DEAD, dead_mode=DEAD_MODE)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE * 2, shuffle=False,
                             num_workers=0, pin_memory=True)   # num_workers=0 obligatorio en Windows
     print(f"  Val: {len(X_val):,} eventos")
@@ -258,6 +277,7 @@ def main():
                     'run_tag': run_tag, 'model_kwargs': model_kwargs, 'n_params': n_params,
                     'loss': LOSS, 'physics_term': LOSS.split('_')[1] if '_' in LOSS else None,
                     'lambda_dr': LAMBDA_DR, 'lambda_en': LAMBDA_EN, 'huber_delta': HUBER_DELTA,
+                    'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
                     'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
@@ -309,14 +329,15 @@ def main():
         f_train = train_files[(epoch - 1) % len(train_files)]
         X_train = load_dat_to_dense(f_train, max_events=MAX_EVENTS)
         # seed = epoch → el masking aleatorio cambia en cada época
-        train_ds = SiPMImputationDataset(X_train, seed=epoch)
+        train_ds = SiPMImputationDataset(X_train, seed=epoch,
+                                         n_dead=N_DEAD, dead_mode=DEAD_MODE)
         train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
                                   num_workers=0, pin_memory=True)
 
         # ── Una época de entrenamiento ───────────────────────
         model.train()
         run_loss, run_phys, n_seen = 0.0, 0.0, 0
-        for x_in, target, ch, is_mod in train_loader:
+        for x_in, target, dead, is_mod in train_loader:
             x_in   = x_in.to(device)
             target = target.to(device)
 
@@ -324,9 +345,9 @@ def main():
             out  = model(x_in)
             loss = loss_fn(out, target)                       # término base (MSE/Huber/MAE)
             if phys_term == 'dr':
-                extra = (delta_r(out, target, ch.to(device), xs_t, ys_t) ** 2).mean()   # ΔR²
+                extra = (delta_r(out, target, dead.to(device), xs_t, ys_t) ** 2).mean()  # ΔR²
             elif phys_term == 'en':
-                extra = energy_shift(out, target, ch.to(device))                        # |Δenergía|
+                extra = energy_shift(out, target, dead.to(device))                       # |Δenergía|
             if phys_term:
                 loss = loss + lam * extra
                 run_phys += extra.item() * len(target)
@@ -471,6 +492,25 @@ if __name__ == '__main__':
             assert j + 1 < len(argv) and argv[j + 1].isdigit(), "uso: --heads H"
             MODEL_KWARGS = {**MODEL_KWARGS, 'n_heads': int(argv[j + 1])}; del argv[j:j + 2]
 
+    # --dead K | --dead KMIN-KMAX  (+ --deadmode cluster|scatter): multi-dead.
+    dead_sfx = ''
+    if '--dead' in argv:
+        i = argv.index('--dead')
+        assert i + 1 < len(argv), "uso: --dead K  |  --dead KMIN-KMAX"
+        spec = argv[i + 1]; del argv[i:i + 2]
+        if '-' in spec:
+            kmin, kmax = (int(v) for v in spec.split('-'))
+            N_DEAD = (kmin, kmax); dead_sfx = f'_dead{kmin}-{kmax}'
+        else:
+            N_DEAD = int(spec); dead_sfx = f'_dead{N_DEAD}'
+        if '--deadmode' in argv:
+            j = argv.index('--deadmode')
+            assert j + 1 < len(argv) and argv[j + 1] in ('cluster', 'scatter'), \
+                "uso: --deadmode cluster|scatter"
+            DEAD_MODE = argv[j + 1]; del argv[j:j + 2]
+            if DEAD_MODE == 'scatter':
+                dead_sfx += '_scatter'      # 'cluster' es el modo por defecto → sin sufijo
+
     # --tag STR: etiqueta libre al final del nombre de carpeta (para réplicas sin pisar).
     tag = None
     if '--tag' in argv:
@@ -491,6 +531,7 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
     if attn > 0:
         RUN_SUFFIX = f'{RUN_SUFFIX}_attn{attn}'           # p.ej. _attn2 → carpeta propia
+    RUN_SUFFIX = f'{RUN_SUFFIX}{dead_sfx}'                # p.ej. _dead1-4 / _dead3_scatter
     if tag is not None:
         RUN_SUFFIX = f'{RUN_SUFFIX}_{tag}'                # réplica u otra variante → carpeta propia
     main()

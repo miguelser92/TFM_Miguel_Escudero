@@ -197,7 +197,8 @@ class SiPMImputationDataset(Dataset):
         Semilla del generador aleatorio (cambiarla por época para variar el masking).
     """
 
-    def __init__(self, X_raw: np.ndarray, seed: int = 0):
+    def __init__(self, X_raw: np.ndarray, seed: int = 0,
+                 n_dead=1, dead_mode: str = 'cluster', nbr=None):
         # ascontiguousarray: garantiza memoria contigua y dtype float32 (acceso rápido;
         # evita sorpresas si X_raw venía de un slicing no contiguo de otro array).
         self.X = np.ascontiguousarray(X_raw, dtype=np.float32)
@@ -205,9 +206,51 @@ class SiPMImputationDataset(Dataset):
         # y aislado. train.py le pasa una semilla distinta por época para variar el masking.
         self.rng = np.random.default_rng(seed)
 
+        # ── MULTI-DEAD ──
+        # n_dead: int (k fijo) o (kmin, kmax) → k variable por muestra (curriculum mezclado).
+        # dead_mode: 'cluster' = los k muertos son CONTIGUOS (caso físico real: sombras,
+        #            conexiones en serie, efectos térmicos) | 'scatter' = k al azar por el
+        #            detector (CONTROL: mismo nº de muertos, sin contigüidad).
+        self.n_dead    = n_dead
+        self.dead_mode = dead_mode
+        if nbr is None and dead_mode == 'cluster':
+            # Import PEREZOSO: hex_geometry importa de dataset, así que a nivel de módulo
+            # habría ciclo. Aquí dataset ya está cargado del todo → seguro.
+            from hex_geometry import get_neighbor_matrix
+            nbr = get_neighbor_matrix()
+        self.nbr = nbr
+
     def __len__(self) -> int:
         # PyTorch usa esto para saber cuántas muestras hay (= nº de eventos).
         return len(self.X)
+
+    def _sample_k(self) -> int:
+        """Nº de canales a apagar en esta muestra (fijo o sorteado en el rango)."""
+        if isinstance(self.n_dead, int):
+            return self.n_dead
+        kmin, kmax = self.n_dead
+        return int(self.rng.integers(kmin, kmax + 1))
+
+    def _grow_cluster(self, seed_ch: int, k: int) -> np.ndarray:
+        """
+        Clúster CONTIGUO de k sensores: parte del semilla y crece agregando, una a una,
+        una vecina real elegida al azar de la frontera actual. Reproduce el fallo físico
+        realista (una zona del detector se apaga junta).
+        """
+        cluster = [int(seed_ch)]
+        while len(cluster) < k:
+            frontera = {int(j) for c in cluster for j in self.nbr[c]
+                        if j >= 0 and int(j) not in cluster}
+            if not frontera:
+                break                      # clúster aislado (no ocurre en esta malla)
+            cluster.append(int(self.rng.choice(sorted(frontera))))
+        return np.array(cluster, dtype=np.int64)
+
+    def _scatter(self, seed_ch: int, k: int) -> np.ndarray:
+        """Control DISPERSO: k sensores al azar por todo el detector (sin contigüidad)."""
+        otros = np.setdiff1d(np.arange(N_ACTIVE), [seed_ch])
+        extra = self.rng.choice(otros, size=min(k - 1, len(otros)), replace=False)
+        return np.concatenate([[seed_ch], extra]).astype(np.int64)
 
     def __getitem__(self, idx: int):
         # PyTorch llama a esto para obtener la muestra 'idx'. Aquí fabricamos la muestra
@@ -218,22 +261,33 @@ class SiPMImputationDataset(Dataset):
         active = np.flatnonzero(x_raw > 0)    # índices con carga > 0 (flatnonzero = where(cond)[0])
         zeros  = np.flatnonzero(x_raw == 0)   # índices a 0 (no dispararon)
 
-        # ── Elegir QUÉ canal apagar, forzando la clase por la PARIDAD del índice ──
+        # ── Elegir la SEMILLA del fallo, forzando la clase por la PARIDAD del índice ──
         # (con shuffle=True en el DataLoader, esto da ~50/50 modified/non-modified por batch)
         if idx % 2 == 0 and len(active) > 0:
-            ch = int(self.rng.choice(active))   # MODIFIED: apagamos un canal que SÍ tenía señal
-            is_modified = 1                     #   → la red tendrá que imputar de verdad
+            seed_ch = int(self.rng.choice(active))   # MODIFIED: semilla en un canal con señal
         elif len(zeros) > 0:
-            ch = int(self.rng.choice(zeros))    # NON-MODIFIED: apagamos un canal que ya valía 0
-            is_modified = 0                     #   → la red debe aprender a NO corregir
+            seed_ch = int(self.rng.choice(zeros))    # NON-MODIFIED: semilla en un canal ya a 0
         else:
-            # Fallback raro: evento sin ningún canal a 0 (casi imposible) → lo tratamos como modified
-            ch = int(self.rng.choice(active))
-            is_modified = 1
+            seed_ch = int(self.rng.choice(active))   # fallback raro: evento sin ceros
 
-        # ── Apagar el canal elegido y normalizar POR EVENTO (DESPUÉS de apagar) ──
+        # ── Extender la semilla a k canales muertos (contiguos o dispersos) ──
+        k = self._sample_k()
+        if k <= 1:
+            dead_idx = np.array([seed_ch], dtype=np.int64)
+        elif self.dead_mode == 'cluster':
+            dead_idx = self._grow_cluster(seed_ch, k)
+        else:
+            dead_idx = self._scatter(seed_ch, k)
+
+        # Con k>1 la etiqueta se generaliza: 'modified' = ALGUNO de los muertos tenía señal
+        # (para k=1 coincide exactamente con el criterio de siempre). Ojo: con k>1 el
+        # balanceo 50/50 pasa a ser aproximado, porque un clúster sembrado en un cero
+        # puede arrastrar vecinos con señal.
+        is_modified = int((x_raw[dead_idx] > 0).any())
+
+        # ── Apagar los canales elegidos y normalizar POR EVENTO (DESPUÉS de apagar) ──
         x_masked = x_raw.copy()   # copia del evento donde simularemos el fallo
-        x_masked[ch] = 0.0        # "matamos" el canal: ponemos su carga a 0
+        x_masked[dead_idx] = 0.0  # "matamos" los canales: ponemos su carga a 0
 
         norm = x_masked.max()     # máximo SOBRE LOS CANALES VISIBLES (post-máscara) = factor de escala
         if norm == 0:
@@ -245,9 +299,15 @@ class SiPMImputationDataset(Dataset):
         x_input = x_masked / norm        # (61,) entrada: cargas normalizadas con el canal a 0
         target  = x_raw    / norm        # (61,) objetivo: vector original COMPLETO, misma escala
 
-        # Máscara binaria que le dice a la red qué canal está apagado
+        # Máscara binaria que le dice a la red qué canales están apagados
         mask = np.ones(N_ACTIVE, dtype=np.float32)   # 1 = canal presente
-        mask[ch] = 0.0                               # 0 = canal apagado (el que hay que imputar)
+        mask[dead_idx] = 0.0                         # 0 = canal apagado (a imputar)
+
+        # Vector de muertos (complementario de la máscara): 1 donde hay que imputar.
+        # Sustituye al índice escalar 'ch' de la versión de un solo canal; para k=1
+        # tiene un único 1, así que las métricas dan exactamente lo mismo que antes.
+        dead = np.zeros(N_ACTIVE, dtype=np.float32)
+        dead[dead_idx] = 1.0
 
         # Apilamos en una matriz 2×61 (channels-first, como espera PyTorch):
         #   fila 0 = cargas normalizadas,  fila 1 = máscara
@@ -257,7 +317,7 @@ class SiPMImputationDataset(Dataset):
         return (
             torch.from_numpy(x_in),                          # entrada  (2, 61) float32
             torch.from_numpy(target),                        # objetivo (61,)   float32 (los 61 canales)
-            torch.tensor(ch, dtype=torch.long),              # índice denso del canal apagado
+            torch.from_numpy(dead),                          # (61,) 1 = canal apagado a imputar
             torch.tensor(is_modified, dtype=torch.long),     # etiqueta: 1=modified, 0=non-modified (no la ve la red)
         )
 
@@ -269,9 +329,19 @@ if __name__ == '__main__':
     print(f"Eventos cargados: {X.shape}  (canales activos medios: {(X>0).sum(1).mean():.1f})")
 
     ds = SiPMImputationDataset(X, seed=0)
-    x_in, target, ch, is_mod = ds[0]   # idx=0 → modified
+    x_in, target, dead, is_mod = ds[0]   # idx=0 → modified
     print(f"x_in shape   : {tuple(x_in.shape)}  (fila0=cargas, fila1=máscara)")
     print(f"target shape : {tuple(target.shape)}  max={target.max():.3f}  (puede ser >1)")
-    print(f"canal apagado: idx={ch.item()} (Ich={IDX_TO_ICH[ch.item()]})  modified={is_mod.item()}")
-    x_in2, _, _, is_mod2 = ds[1]        # idx=1 → non-modified
+    idxs = dead.nonzero().flatten().tolist()
+    print(f"canal apagado: {[IDX_TO_ICH[i] for i in idxs]} (Ich)  modified={is_mod.item()}")
+    _, _, _, is_mod2 = ds[1]             # idx=1 → non-modified
     print(f"muestra idx=1: modified={is_mod2.item()} (esperado 0)")
+
+    # Multi-dead: clúster contiguo vs disperso
+    for mode in ('cluster', 'scatter'):
+        d = SiPMImputationDataset(X, seed=0, n_dead=4, dead_mode=mode)
+        ich = [IDX_TO_ICH[i] for i in d[0][2].nonzero().flatten().tolist()]
+        print(f"k=4 modo {mode:8s}: Ich apagados = {sorted(ich)}")
+    d = SiPMImputationDataset(X, seed=0, n_dead=(1, 4), dead_mode='cluster')
+    ks = [int(d[i][2].sum()) for i in range(0, 12)]
+    print(f"k variable (1,4): tamaños muestreados = {ks}")
