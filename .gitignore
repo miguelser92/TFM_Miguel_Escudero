@@ -18,6 +18,10 @@ wandb/
 # === PDFs / PNG de informes (salidas, no código) ===
 reports/*.pdf
 reports/*.png
+figs_arquitecturas/
+
+# === Tabla de métricas (binario, se regenera desde los JSON de runs/) ===
+Metricas_runs_TFM.xlsx
 
 # === Código antiguo (superseded) ===
 Old Code/

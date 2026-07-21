@@ -381,7 +381,7 @@ def main():
 
     skip = set()
     for j, a in enumerate(argv):
-        if a in ('--out', '--events', '--seeds'):
+        if a in ('--out', '--events', '--seeds', '--kmax'):
             skip.add(j); skip.add(j + 1)
         elif a.startswith('--'):
             skip.add(j)
@@ -391,8 +391,11 @@ def main():
         return
 
     global K_VALUES
+    kmax = flag('--kmax')
     if quick:
         K_VALUES = (1, 2)
+    elif kmax:
+        K_VALUES = tuple(range(1, int(kmax) + 1))   # estira la curva: --kmax 8 → k=1..8
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
