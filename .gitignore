@@ -15,9 +15,11 @@ runs/
 # === Weights & Biases (caché local de runs) ===
 wandb/
 
-# === PDFs / PNG de informes (salidas, no código) ===
+# === PDFs / PNG / datos de informes (salidas reproducibles, no código) ===
 reports/*.pdf
 reports/*.png
+reports/*.json
+reports/*.npz
 figs_arquitecturas/
 
 # === Tabla de métricas (binario, se regenera desde los JSON de runs/) ===
