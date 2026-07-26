@@ -53,7 +53,7 @@ OUT_DIR    = Path(r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\reports')
 SEVERITIES = (1.0, 0.7, 0.5, 0.3)   # 1.0 = muerto total; 0.3 = pierde el 30%
 CLUSTER_K   = (1, 2, 3, 4)          # tamaños de clúster contiguo degradado (caso físico real)
 CLUSTER_SEV = (1.0, 0.7, 0.5)       # severidad del clúster: total vs parcial (el caso difícil)
-Z_OP       = 4.0                    # umbral "de operación" que veníamos usando
+Z_OP       = 2.0                    # umbral de operación (ROC + FPR estable con module-norm)
 EPS        = 1e-9
 
 
@@ -179,7 +179,7 @@ def main():
 
     # ── ROC/AUC por severidad + operating point en Z_OP ──
     print("\n=== VALIDACIÓN DEL DETECTOR (TEST-set, ground truth por inyección) ===")
-    print(f"{'severidad':>10} {'AUC':>6} {'TPR@Z4':>8} {'FPR@Z4':>8} {'TPR borde':>10} {'TPR centro':>11}")
+    print(f"{'severidad':>10} {'AUC':>6} {f'TPR@Z{Z_OP}':>8} {f'FPR@Z{Z_OP}':>8} {'TPR borde':>10} {'TPR centro':>11}")
     results = {}
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(13, 5.2))
     for s in SEVERITIES:
@@ -198,7 +198,7 @@ def main():
     fpr_all  = (neg < -Z_OP).mean()
     fpr_edge = (neg[neg_edge] < -Z_OP).mean()
     fpr_core = (neg[~neg_edge] < -Z_OP).mean()
-    print(f"\n  Falsos positivos @Z4: global={fpr_all:.3f}  borde={fpr_edge:.3f}  centro={fpr_core:.3f}")
+    print(f"\n  Falsos positivos @Z{Z_OP}: global={fpr_all:.3f}  borde={fpr_edge:.3f}  centro={fpr_core:.3f}")
     print(f"  (clave: borde ≈ centro → el detector NO falsea los bordes sanos)")
 
     axL.plot([0, 1], [0, 1], 'k--', alpha=0.4)
@@ -213,11 +213,12 @@ def main():
     axR.plot(sv, [results[f's{s}']['tpr_edge'] for s in SEVERITIES], 'o-', color='#c0392b', label='edge channels')
     axR.plot(sv, [results[f's{s}']['tpr_core'] for s in SEVERITIES], 's-', color='#2471a3', label='core channels')
     axR.set_xlabel('Failure severity (% of signal lost)')
-    axR.set_ylabel('Detection rate @ Z=4')
-    axR.set_title('Detection vs severity — edge vs core')
+    axR.set_ylabel(f'Detection rate @ Z={Z_OP}')
+    axR.set_title(f'Detection vs severity — edge vs core (Z={Z_OP})')
     axR.set_ylim(0, 1.02); axR.grid(alpha=0.3); axR.legend(fontsize=9)
     fig.tight_layout()
-    fig.savefig(OUT_DIR / 'bad_validation_roc.png', dpi=150, bbox_inches='tight'); plt.close(fig)
+    roc_path = OUT_DIR / f'bad_validation_roc_z{Z_OP}.png'
+    fig.savefig(roc_path, dpi=150, bbox_inches='tight'); plt.close(fig)
 
     # ── Elegir el umbral CON DATOS (no a ojo) ──
     # Guardamos los scores para poder re-analizar sin recomputar.
@@ -274,7 +275,7 @@ def main():
            'fpr_global': round(float(fpr_all), 4), 'fpr_edge': round(float(fpr_edge), 4),
            'fpr_core': round(float(fpr_core), 4), 'by_severity': results}
     (OUT_DIR / 'bad_validation.json').write_text(json.dumps(out, indent=2), encoding='utf-8')
-    print(f"\n  guardado: reports/bad_validation.json y bad_validation_roc.png")
+    print(f"\n  guardado: reports/bad_validation.json y {roc_path.name}")
 
 
 if __name__ == '__main__':

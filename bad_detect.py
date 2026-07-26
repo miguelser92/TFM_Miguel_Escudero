@@ -57,7 +57,8 @@ BAD_DIR    = r'E:\Datos TFM\Bad\Bad'
 PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 OUT_DIR    = Path(r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\reports')
 
-Z_THRESH   = 4.0        # nº de MAD por debajo del baseline para marcar un canal como malo
+Z_THRESH   = 2.0        # umbral operativo (elegido con la ROC): FPR estable ~4% con module-norm
+MODULE_QA_Z = 1.0       # |shift| de módulo por encima del cual se marca "globalmente desplazado"
 MAX_EVENTS = 150_000    # eventos por archivo (frac_active y carga media son estables)
 EPS        = 1e-9
 
@@ -128,20 +129,38 @@ def build_baseline(good_files, nbr, max_events):
 #  APLICAR A UN MÓDULO (Good o Bad)
 # ════════════════════════════════════════════════════════════
 
-def flag_module(X, nbr, base, z_thresh):
+def flag_module(X, nbr, base, z_thresh, module_norm=True):
     """
     z-score robusto por canal (negativo = por debajo de lo esperado en SU posición).
     Marca MALO el canal que cae > z_thresh MADs por debajo del baseline en frac_active
-    o en neighbor_ratio. Devuelve el resumen por canal + los índices marcados.
+    o en neighbor_ratio.
+
+    NORMALIZACIÓN POR MÓDULO (module_norm=True): cada módulo tiene su propio nivel global
+    (ganancia, threshold, estadística) que desplaza TODOS sus canales por igual. Lo quitamos
+    restando la MEDIANA del z-score del módulo → cada canal se juzga relativo a SU módulo, no
+    en absoluto. Así un canal muerto destaca aunque el módulo entero lea bajo, y un módulo
+    globalmente desplazado deja de marcar canales sanos en masa. La mediana es robusta: un
+    clúster muerto (<50% de los canales) no arrastra el centro.
+
+    El desplazamiento global (module_shift) se devuelve aparte → sirve de QA de módulo
+    ("este detector lee un X% menos de lo normal"), sin confundirlo con fallos de canal.
     """
     s = module_stats(X, nbr)
     z_frac  = (s['frac_active'] - base['frac_median'])  / base['frac_spread']
     z_ratio = (s['neigh_ratio'] - base['ratio_median']) / base['ratio_spread']
+
+    shift_f = float(np.median(z_frac))                      # nivel global del módulo (QA)
+    shift_r = float(np.median(z_ratio))
+    if module_norm:
+        z_frac  = z_frac  - shift_f                         # relativo al propio módulo
+        z_ratio = z_ratio - shift_r
+
     # Señal de "muerto": muy por debajo (una cola, negativa) en cualquiera de los dos
     score  = np.minimum(z_frac, z_ratio)                    # el más anómalo de los dos
     flagged = np.where(score < -z_thresh)[0]
     flagged = flagged[np.argsort(score[flagged])]           # más muerto primero
     return {'z_frac': z_frac, 'z_ratio': z_ratio, 'score': score,
+            'module_shift_frac': shift_f, 'module_shift_ratio': shift_r,
             'frac_active': s['frac_active'], 'neigh_ratio': s['neigh_ratio'],
             'flagged': flagged}
 
@@ -224,29 +243,40 @@ def main():
 
     # ── Aplicar a los BAD ──
     bad_files = sorted(glob.glob(str(Path(BAD_DIR) / '*.dat')))
-    print(f"\n=== DETECCIÓN EN {len(bad_files)} MÓDULOS BAD (z > {args.z}) ===")
+    print(f"\n=== DETECCIÓN EN {len(bad_files)} MÓDULOS BAD (module-norm, z > {args.z}) ===")
     report = {}
-    n_con, n_sin = 0, 0
+    n_con, n_sin, n_shift = 0, 0, 0
     for f in bad_files:
         X = load_dat_to_dense(f, max_events=args.max_events)
         r = flag_module(X, nbr, base, args.z)
         ich = [int(IDX_TO_ICH[i]) for i in r['flagged']]
-        report[Path(f).name] = [
-            {'ich': int(IDX_TO_ICH[i]), 'idx': int(i),
-             'z_frac': round(float(r['z_frac'][i]), 1),
-             'z_ratio': round(float(r['z_ratio'][i]), 1)}
-            for i in r['flagged']
-        ]
+        shift = r['module_shift_frac']
+        report[Path(f).name] = {
+            'module_shift': round(float(shift), 2),
+            'module_qa': 'globalmente desplazado' if shift < -MODULE_QA_Z else 'ok',
+            'channels': [
+                {'ich': int(IDX_TO_ICH[i]), 'idx': int(i),
+                 'z_frac': round(float(r['z_frac'][i]), 1),
+                 'z_ratio': round(float(r['z_ratio'][i]), 1)}
+                for i in r['flagged']],
+        }
+        qa = f"  [QA: módulo desplazado {shift:+.1f}]" if shift < -MODULE_QA_Z else ""
+        if shift < -MODULE_QA_Z:
+            n_shift += 1
         if ich:
             n_con += 1
-            det = '  '.join(f"Ich{IDX_TO_ICH[i]}(z={r['score'][i]:.0f})" for i in r['flagged'])
-            print(f"  {Path(f).name:16} → {det}")
+            det = '  '.join(f"Ich{IDX_TO_ICH[i]}(z={r['score'][i]:.1f})" for i in r['flagged'])
+            print(f"  {Path(f).name:16} → {det}{qa}")
         else:
             n_sin += 1
-    print(f"\n  {n_con} módulos con canal(es) marcado(s), {n_sin} sin marcar.")
+            if qa:
+                print(f"  {Path(f).name:16} → (sin canales){qa}")
+    print(f"\n  {n_con} módulos con canal(es) marcado(s), {n_sin} sin marcar, "
+          f"{n_shift} globalmente desplazados (QA de módulo aparte).")
     (OUT_DIR / 'bad_detection.json').write_text(
-        json.dumps({'z_thresh': args.z, 'max_events': args.max_events,
-                    'n_good_modules': base['n_modules'], 'detections': report}, indent=2),
+        json.dumps({'z_thresh': args.z, 'module_norm': True, 'max_events': args.max_events,
+                    'module_qa_z': MODULE_QA_Z, 'n_good_modules': int(base['n_modules']),
+                    'detections': report}, indent=2),
         encoding='utf-8')
     print(f"  informe guardado en {OUT_DIR/'bad_detection.json'}")
 
