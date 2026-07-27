@@ -95,7 +95,9 @@ def main():
     ap.add_argument('--sample', type=int, default=None, help='nº de módulos aleatorios (por defecto TODOS)')
     ap.add_argument('--cols', type=int, default=3)
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--tag', type=str, default='', help='identificador para el archivo de salida')
     args = ap.parse_args()
+    tag = f'_{args.tag}' if args.tag else ''
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
@@ -116,7 +118,7 @@ def main():
     cols = args.cols
     rows_per_page = 4
     per_page = cols * rows_per_page
-    out_pdf = OUT_DIR / f'bad_detection_report_z{args.z}.pdf'
+    out_pdf = OUT_DIR / f'bad_detection_report_z{args.z}{tag}.pdf'
 
     n_flagged_total = 0
     with PdfPages(out_pdf) as pdf:

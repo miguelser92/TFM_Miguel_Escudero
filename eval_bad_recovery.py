@@ -84,7 +84,9 @@ def main():
     ap.add_argument('--files', type=str, default=None, help='lista datasXXX,datasYYY (sin .dat)')
     ap.add_argument('--z', type=float, default=Z_OP)
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--tag', type=str, default='', help='identificador para los archivos de salida')
     args = ap.parse_args()
+    tag = f'_{args.tag}' if args.tag else ''
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -147,7 +149,7 @@ def main():
         rngp = np.random.default_rng(args.seed)
         sel = [con[i] for i in sorted(rngp.permutation(len(con))[:args.sample])]
 
-    out_pdf = OUT_DIR / f'bad_recovery_z{args.z}.pdf'
+    out_pdf = OUT_DIR / f'bad_recovery_z{args.z}{tag}.pdf'
     print(f"\nGenerando flood maps de {len(sel)} módulos → {out_pdf.name}")
     with PdfPages(out_pdf) as pdf:
         for f in sel:
@@ -174,7 +176,7 @@ def main():
             fig.tight_layout()
             pdf.savefig(fig, bbox_inches='tight'); plt.close(fig)
 
-    (OUT_DIR / 'bad_recovery.json').write_text(
+    (OUT_DIR / f'bad_recovery{tag}.json').write_text(
         json.dumps({'z': args.z, 'max_events': args.max_events,
                     'z_before_mean': round(float(zb.mean()), 3),
                     'z_after_mean': round(float(za.mean()), 3),
