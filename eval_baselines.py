@@ -20,6 +20,8 @@ Autor: Miguel Escudero (TFM)
 """
 
 import sys
+import json
+import datetime
 import argparse
 import numpy as np
 import torch
@@ -37,6 +39,7 @@ from imputation_eval import load_model, impute_channel, compute_xy
 RUNS_BASE  = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\runs'
 GOOD_DIR   = r'E:\Datos TFM\Good\Good'
 PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
+OUT_DIR    = Path(r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\reports')
 
 
 def fit_linear(train_X, nbr):
@@ -72,7 +75,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', default='imputer_hexcnn_s_mse')
     ap.add_argument('--max-events', type=int, default=100_000)
+    ap.add_argument('--tag', default='', help='identificador para el archivo de salida')
     args = ap.parse_args()
+    tag = f'_{args.tag}' if args.tag else ''
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
@@ -135,6 +140,21 @@ def main():
     net, lin = np.mean(rec['network']), np.mean(rec['linear_reg'])
     print(f"\n  ventaja de la red sobre regresión lineal: {net - lin:+.1f} puntos de recuperación")
     print(f"  ventaja sobre media de vecinos: {net - np.mean(rec['neighbor_mean']):+.1f} puntos")
+
+    # ── JSON estándar (persistir, no depender de la consola) ──
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out = {'run': args.run, 'max_events': args.max_events,
+           'n_channels': len(rec['network']),
+           'generated': datetime.datetime.now().isoformat(timespec='seconds'),
+           'methods': {m: {'recov_p90_macro': round(float(np.mean(rec[m])), 2),
+                           'mae_macro': round(float(np.mean(mae[m])), 4),
+                           'recov_p90_per_channel': [round(float(v), 2) for v in rec[m]]}
+                       for m in rec},
+           'net_vs_linear_pts': round(float(net - lin), 2),
+           'net_vs_neighbor_pts': round(float(net - np.mean(rec['neighbor_mean'])), 2)}
+    p = OUT_DIR / f'baselines{tag}.json'
+    p.write_text(json.dumps(out, indent=2), encoding='utf-8')
+    print(f"  JSON guardado: {p}")
 
 
 if __name__ == '__main__':

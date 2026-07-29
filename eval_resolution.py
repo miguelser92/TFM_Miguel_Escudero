@@ -22,6 +22,8 @@ Autor: Miguel Escudero (TFM)
 """
 
 import sys
+import json
+import datetime
 import argparse
 import numpy as np
 import torch
@@ -111,6 +113,20 @@ def main():
     print(f"\n  recuperación de BLUR (FWHM): {(fd-fi)/fd*100:>5.1f}%   "
           f"(FWHM {fd:.2f} → {fi:.2f} mm)")
     print(f"  recuperación de SESGO (bias): {(bd-bi)/bd*100:>5.1f}%   ({bd:.2f} → {bi:.2f} mm)")
+
+    # ── JSON estándar (persistir, no depender de la consola) ──
+    out = {'run': args.run, 'max_events': args.max_events,
+           'n_channels': len(fwhm_deg),
+           'generated': datetime.datetime.now().isoformat(timespec='seconds'),
+           'fwhm_deg_macro_mm': round(float(fd), 4), 'fwhm_imp_macro_mm': round(float(fi), 4),
+           'bias_deg_macro_mm': round(float(bd), 4), 'bias_imp_macro_mm': round(float(bi), 4),
+           'blur_recovery_pct': round(float((fd - fi) / fd * 100), 2),
+           'bias_recovery_pct': round(float((bd - bi) / bd * 100), 2),
+           'fwhm_imp_per_channel': [round(float(v), 4) for v in fwhm_imp],
+           'fwhm_deg_per_channel': [round(float(v), 4) for v in fwhm_deg]}
+    p = OUT_DIR / f'resolution{tag}.json'
+    p.write_text(json.dumps(out, indent=2), encoding='utf-8')
+    print(f"  JSON guardado: {p}")
 
     # ── Figura: nube de error 2D (canal Ich30) degradado vs imputado ──
     if err_ref['deg'] is not None:
