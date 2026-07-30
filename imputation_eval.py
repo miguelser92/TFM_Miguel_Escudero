@@ -87,16 +87,58 @@ BAD_ICH     = 59          # canal muerto conocido en datas016 (del bad_report)
 #  CARGA DEL MODELO
 # ════════════════════════════════════════════════════════════
 
+# Arquitecturas de los bancos de pruebas (no están en model._MODELS): se
+# reconstruyen con sus propios builders. Ronda 1 = sandbox_arch, ronda 2 = sandbox_arch2.
+_SANDBOX_ARCHS = {'transformer', 'unet', 'pna', 'unet2', 'xformer'}
+
+
+def resolve_ckpt_path(ckpt_path):
+    """Devuelve la ruta real del checkpoint: best_model.pth (producción) o, si no
+    existe, best.pth (sandbox). Así los evals funcionan sobre ambos tipos de run."""
+    p = Path(ckpt_path)
+    if not p.exists():
+        alt = p.with_name('best.pth')
+        if alt.exists():
+            return alt
+    return p
+
+
+def _build_sandbox(ckpt, device):
+    """Reconstruye un modelo de sandbox desde su checkpoint (nbr/dist se recalculan)."""
+    from hex_geometry import get_neighbor_matrix
+    from dataset import load_positions
+    xs, ys = load_positions(PSIPM_PATH)
+    nbr = get_neighbor_matrix(PSIPM_PATH)
+    dxy = np.hypot(xs[:, None] - xs, ys[:, None] - ys)
+    dist = dxy / np.median(dxy[dxy > 0])
+    arch, dim = ckpt['arch'], ckpt.get('dim')
+    if arch in ('pna', 'unet2', 'xformer'):
+        from sandbox_arch2 import build_model
+        return build_model(arch, nbr, dist, dim=dim,
+                           layers=ckpt.get('layers', 8), heads=ckpt.get('heads', 8))
+    from sandbox_arch import GraphTransformer, GraphUNet
+    if arch == 'transformer':
+        return GraphTransformer(dim=dim, heads=4, layers=4, dist=dist)
+    return GraphUNet(dim=dim, nbr=nbr)
+
+
 def load_model(ckpt_path, device):
-    """Reconstruye la arquitectura (según ckpt['arch']) desde el checkpoint."""
+    """Reconstruye la arquitectura (según ckpt['arch']) desde el checkpoint.
+    Acepta runs de producción (best_model.pth + model_kwargs) y de sandbox (best.pth)."""
+    ckpt_path = resolve_ckpt_path(ckpt_path)
     # weights_only=False: el checkpoint guarda metadatos (model_kwargs, métricas),
     # no solo tensores. Es un archivo nuestro, así que es seguro.
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    model = get_model(ckpt['arch'], **ckpt['model_kwargs']).to(device)
+    if ckpt['arch'] in _SANDBOX_ARCHS:
+        model = _build_sandbox(ckpt, device).to(device)
+    else:
+        model = get_model(ckpt['arch'], **ckpt['model_kwargs']).to(device)
     model.load_state_dict(ckpt['model_state'])
     model.eval()
-    print(f"Modelo '{ckpt['arch']}' cargado (epoch {ckpt['epoch']}, "
-          f"val_loss={ckpt['val_loss']:.4f}, MAE_mod={ckpt['val_mae_mod']:.4f})")
+    vloss = ckpt.get('val_loss')
+    extra = f"val_loss={vloss:.4f}, " if vloss is not None else ''
+    print(f"Modelo '{ckpt['arch']}' cargado (epoch {ckpt.get('epoch')}, "
+          f"{extra}MAE_mod={ckpt.get('val_mae_mod', float('nan')):.4f})")
     return model
 
 

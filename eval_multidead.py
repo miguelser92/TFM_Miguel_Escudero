@@ -218,7 +218,8 @@ def precompute_degraded(X_list, orig_xy, x_sipm, y_sipm, dead_sets_all):
 
 def eval_model(run_name, X_list, orig_xy, deg, x_sipm, y_sipm, dead_sets_all, device):
     """Barre (modo, k, semilla) imputando el conjunto y midiendo recuperación de posición."""
-    ckpt_path = Path(RUNS_BASE) / run_name / 'best_model.pth'
+    from imputation_eval import resolve_ckpt_path
+    ckpt_path = resolve_ckpt_path(Path(RUNS_BASE) / run_name / 'best_model.pth')
     model = load_model(ckpt_path, device)                     # igual que en eval_total
     ckpt  = torch.load(ckpt_path, map_location='cpu', weights_only=False)
     per_set = []
@@ -428,8 +429,9 @@ def main():
         out_dir = Path(RUNS_BASE) / run_name / out_name
         if (out_dir / 'eval_multidead_metrics.json').exists():
             print(f"[SALTO] {run_name}: la campaña '{out_name}' ya existe."); continue
-        if not (Path(RUNS_BASE) / run_name / 'best_model.pth').exists():
-            print(f"[SALTO] {run_name}: sin best_model.pth."); continue
+        from imputation_eval import resolve_ckpt_path
+        if not resolve_ckpt_path(Path(RUNS_BASE) / run_name / 'best_model.pth').exists():
+            print(f"[SALTO] {run_name}: sin checkpoint (best_model.pth/best.pth)."); continue
         out_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"\n=== {run_name} ===")

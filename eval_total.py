@@ -182,7 +182,8 @@ def eval_total_model(run_name, X_list, orig_xy, deg_stats, x_sipm, y_sipm,
                      channels, device, hist_channels=frozenset(), rng_hist=None):
     """Imputa cada canal con el modelo del run y devuelve la tabla por canal
     (+ histogramas 2D imputados de los canales de las líneas)."""
-    ckpt_path = Path(RUNS_BASE) / run_name / 'best_model.pth'
+    from imputation_eval import resolve_ckpt_path
+    ckpt_path = resolve_ckpt_path(Path(RUNS_BASE) / run_name / 'best_model.pth')
     model = load_model(ckpt_path, device)
     ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
 
