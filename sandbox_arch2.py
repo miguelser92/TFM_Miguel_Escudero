@@ -80,14 +80,30 @@ class PNAConv(nn.Module):
     Convolución de grafo con agregación PNA: en vez de resumir los vecinos solo
     con la media (que tira información), concatena mean/max/min/std y proyecta.
     Mantiene el esqueleto HexConv (self + vecinos, pesos compartidos, BN).
+
+    scalers=True añade los DEGREE SCALERS del paper original (Corso 2020): además
+    de los agregadores, se escala por el grado del nodo con
+        S(d, α) = (log(d+1)/δ)^α,   α ∈ {+1, 0, −1}   (amplifica / neutro / atenúa)
+    y se concatenan las tres versiones (→ 12 bloques en vez de 4). Aquí el grado
+    va de 3 (borde) a 6 (interior): los scalers permiten a la red tratar distinto
+    a un nodo con pocos vecinos, que es justo el caso problemático del borde.
     """
 
-    def __init__(self, in_f, out_f, neighbor_matrix):
+    def __init__(self, in_f, out_f, neighbor_matrix, scalers=False):
         super().__init__()
+        self.scalers = scalers
+        n_agg = 12 if scalers else 4                        # 4 agregadores × 3 escalas
         self.lin_self = nn.Linear(in_f, out_f)
-        self.lin_agg  = nn.Linear(4 * in_f, out_f, bias=False)   # mean|max|min|std
+        self.lin_agg  = nn.Linear(n_agg * in_f, out_f, bias=False)
         self.bn = nn.BatchNorm1d(out_f)
-        self.register_buffer('nbr', torch.as_tensor(neighbor_matrix, dtype=torch.long))
+        nbr_t = torch.as_tensor(neighbor_matrix, dtype=torch.long)
+        self.register_buffer('nbr', nbr_t)
+        # Escalas por grado, precalculadas (constantes del detector): (N,1)
+        deg = (nbr_t >= 0).sum(1).to(torch.float32)
+        logd = torch.log(deg + 1.0)
+        delta = logd.mean()                                 # δ = media de log(d+1)
+        self.register_buffer('s_amp', (logd / delta).unsqueeze(-1))          # α=+1
+        self.register_buffer('s_att', (delta / logd).unsqueeze(-1))          # α=−1
 
     def forward(self, x):                                  # (B, N, F)
         B, N, Fin = x.shape
@@ -105,15 +121,18 @@ class PNAConv(nn.Module):
         mn = nb.masked_fill(valid == 0,  big).min(2).values
 
         agg = torch.cat([mean, mx, mn, std], dim=-1)       # (B, N, 4F)
+        if self.scalers:                                   # identidad | amplificada | atenuada
+            agg = torch.cat([agg, agg * self.s_amp, agg * self.s_att], dim=-1)
         out = self.lin_self(x) + self.lin_agg(agg)
         out = self.bn(out.reshape(B * N, -1)).reshape(B, N, -1)
         return F.gelu(out)
 
 
 class PNARes(nn.Module):
-    def __init__(self, dim, nbr, drop=0.1):
+    def __init__(self, dim, nbr, drop=0.1, scalers=False):
         super().__init__()
-        self.c1, self.c2 = PNAConv(dim, dim, nbr), PNAConv(dim, dim, nbr)
+        self.c1 = PNAConv(dim, dim, nbr, scalers)
+        self.c2 = PNAConv(dim, dim, nbr, scalers)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
@@ -122,10 +141,11 @@ class PNARes(nn.Module):
 
 class PNAImputer(nn.Module):
     """HexCNN con agregación PNA: mismo esqueleto (stem + 4 bloques res + head)."""
-    def __init__(self, hidden=64, n_blocks=4, nbr=None, dropout=0.1):
+    def __init__(self, hidden=64, n_blocks=4, nbr=None, dropout=0.1, scalers=False):
         super().__init__()
         self.stem = nn.Linear(2, hidden); self.stem_bn = nn.BatchNorm1d(hidden)
-        self.blocks = nn.ModuleList([PNARes(hidden, nbr, dropout) for _ in range(n_blocks)])
+        self.blocks = nn.ModuleList([PNARes(hidden, nbr, dropout, scalers)
+                                     for _ in range(n_blocks)])
         self.head = nn.Linear(hidden, 1)
 
     def forward(self, x):
@@ -217,9 +237,9 @@ def evaluate(model, loader, device, xs_t, ys_t):
     return tot / max(n, 1), err_mod / max(n_mod, 1), float(np.percentile(dR_all, 90))
 
 
-def build_model(arch, nbr, dist, dim=None, layers=8, heads=8):
+def build_model(arch, nbr, dist, dim=None, layers=8, heads=8, scalers=False):
     if arch == 'pna':
-        return PNAImputer(hidden=dim or 64, nbr=nbr)
+        return PNAImputer(hidden=dim or 64, nbr=nbr, scalers=scalers)
     if arch == 'unet2':
         return GraphUNet2(dim=dim or 128, nbr=nbr)
     if arch == 'xformer':
@@ -235,7 +255,8 @@ def eval_real(arch, out_dir, device, nbr, dist, events):
     from imputation_eval import impute_channel, compute_xy
     ck = torch.load(out_dir / 'best.pth', map_location=device, weights_only=False)
     model = build_model(arch, nbr, dist, dim=ck.get('dim'),
-                        layers=ck.get('layers', 8), heads=ck.get('heads', 8))
+                        layers=ck.get('layers', 8), heads=ck.get('heads', 8),
+                        scalers=ck.get('scalers', False))
     model.load_state_dict(ck['model_state']); model.to(device).eval()
     xs, ys = load_positions(PSIPM_PATH)
     _, _, test_files = get_file_split(GOOD_DIR)
@@ -290,6 +311,10 @@ def main():
     ap.add_argument('--dim', type=int, default=None)
     ap.add_argument('--layers', type=int, default=8)
     ap.add_argument('--heads', type=int, default=8)
+    ap.add_argument('--norm', choices=['max', 'sum'], default='max',
+                    help="normalizacion por evento: 'max' (historico) o 'sum' (RchT, estable)")
+    ap.add_argument('--scalers', action='store_true',
+                    help='PNA con degree scalers (Corso 2020): escala por grado del nodo')
     ap.add_argument('--tag', default='')
     ap.add_argument('--eval', action='store_true', help='evaluar best.pth en la métrica real')
     ap.add_argument('--events', type=int, default=60_000, help='eventos/archivo en --eval')
@@ -309,16 +334,18 @@ def main():
 
     xs_t = torch.tensor(xs, dtype=torch.float32, device=device)
     ys_t = torch.tensor(ys, dtype=torch.float32, device=device)
-    model = build_model(args.arch, nbr, dist, dim=args.dim,
-                        layers=args.layers, heads=args.heads).to(device)
+    model = build_model(args.arch, nbr, dist, dim=args.dim, layers=args.layers,
+                        heads=args.heads, scalers=args.scalers).to(device)
     dim_used = args.dim or {'pna': 64, 'unet2': 128, 'xformer': 256}[args.arch]
-    print(f"RONDA 2 — {args.arch}  |  dim={dim_used}  |  params: {count_params(model):,}")
+    sc = ('  |  degree scalers: ON' if args.scalers else '') +          (f'  |  norm: {args.norm}' if args.norm != 'max' else '')
+    print(f"RONDA 2 — {args.arch}  |  dim={dim_used}  |  params: {count_params(model):,}{sc}")
     print("Selección por val_dR_p90 (métrica alineada), warmup+coseno.")
 
     train_files, val_files, _ = get_file_split(GOOD_DIR)
     X_val = np.concatenate([load_dat_to_dense(f, max_events=MAX_EVENTS // len(val_files))
                             for f in val_files])
-    val_loader = DataLoader(SiPMImputationDataset(X_val, seed=VAL_MASK_SEED),
+    val_loader = DataLoader(SiPMImputationDataset(X_val, seed=VAL_MASK_SEED,
+                                                 norm_mode=args.norm),
                             batch_size=BATCH_SIZE * 2, shuffle=False, num_workers=0)
 
     opt = AdamW(model.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY)
@@ -335,7 +362,7 @@ def main():
     for epoch in range(1, args.epochs + 1):
         f = train_files[(epoch - 1) % len(train_files)]
         X = load_dat_to_dense(f, max_events=MAX_EVENTS)
-        loader = DataLoader(SiPMImputationDataset(X, seed=epoch),
+        loader = DataLoader(SiPMImputationDataset(X, seed=epoch, norm_mode=args.norm),
                             batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
         model.train()
         for x_in, target, dead, is_mod in loader:
@@ -353,7 +380,8 @@ def main():
             best = vdr90
             torch.save({'arch': args.arch, 'model_state': model.state_dict(),
                         'epoch': epoch, 'val_mae_mod': vmae, 'val_dr_p90': vdr90,
-                        'dim': dim_used, 'layers': args.layers, 'heads': args.heads},
+                        'dim': dim_used, 'layers': args.layers, 'heads': args.heads,
+                        'scalers': args.scalers, 'norm_mode': args.norm},
                        out_dir / 'best.pth')
             flag = '  ✓ best'
         print(f"Epoch {epoch:3d}/{args.epochs} | lr={opt.param_groups[0]['lr']:.2e} "

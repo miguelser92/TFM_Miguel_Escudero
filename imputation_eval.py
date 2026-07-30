@@ -115,7 +115,8 @@ def _build_sandbox(ckpt, device):
     if arch in ('pna', 'unet2', 'xformer'):
         from sandbox_arch2 import build_model
         return build_model(arch, nbr, dist, dim=dim,
-                           layers=ckpt.get('layers', 8), heads=ckpt.get('heads', 8))
+                           layers=ckpt.get('layers', 8), heads=ckpt.get('heads', 8),
+                           scalers=ckpt.get('scalers', False))
     from sandbox_arch import GraphTransformer, GraphUNet
     if arch == 'transformer':
         return GraphTransformer(dim=dim, heads=4, layers=4, dist=dist)
@@ -135,6 +136,8 @@ def load_model(ckpt_path, device):
         model = get_model(ckpt['arch'], **ckpt['model_kwargs']).to(device)
     model.load_state_dict(ckpt['model_state'])
     model.eval()
+    # El preprocesado del eval debe coincidir con el del entrenamiento
+    model._norm_mode = ckpt.get('norm_mode', 'max')
     vloss = ckpt.get('val_loss')
     extra = f"val_loss={vloss:.4f}, " if vloss is not None else ''
     print(f"Modelo '{ckpt['arch']}' cargado (epoch {ckpt.get('epoch')}, "
@@ -169,7 +172,11 @@ def impute_channel(model, X_raw, ch_idx, device, batch_size=2048):
         # Apagar el canal y normalizar por el máximo de los canales disponibles
         x_masked = batch.copy()
         x_masked[:, ch_idx] = 0.0
-        norm = x_masked.max(axis=1, keepdims=True)      # (b, 1)
+        # Modo de normalización del modelo (lo fija load_model desde el checkpoint).
+        if getattr(model, '_norm_mode', 'max') == 'sum':
+            norm = x_masked.sum(axis=1, keepdims=True) / x_masked.shape[1]
+        else:
+            norm = x_masked.max(axis=1, keepdims=True)      # (b, 1)
         norm[norm == 0] = 1.0                           # guard división por cero
         x_input = x_masked / norm
 

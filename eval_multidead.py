@@ -148,7 +148,10 @@ def impute_set(model, X_raw, dead_idx, device, batch_size=2048):
 
         x_masked = batch.copy()
         x_masked[:, dead_idx] = 0.0
-        norm = x_masked.max(axis=1, keepdims=True)     # (b, 1) máximo de los vivos
+        if getattr(model, '_norm_mode', 'max') == 'sum':
+            norm = x_masked.sum(axis=1, keepdims=True) / x_masked.shape[1]
+        else:
+            norm = x_masked.max(axis=1, keepdims=True)  # (b, 1) máximo de los vivos
         norm[norm == 0] = 1.0                          # guard división por cero
         x_input = x_masked / norm
 

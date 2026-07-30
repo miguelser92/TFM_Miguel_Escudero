@@ -115,6 +115,10 @@ LAMBDA_EN     = 0.7      # peso del término de energía (|corrimiento medio de 
 N_DEAD        = 1
 DEAD_MODE     = 'cluster'
 
+# Normalizacion por evento: 'max' (historico, divide por el maximo post-mascara) o
+# 'sum' (RchT/61: mucho mas estable, no la secuestra un solo canal).
+NORM_MODE     = 'max'
+
 # Split limpio (fuente única en dataset.get_file_split): train / val / test disjuntos
 N_VAL_FILES   = 5
 N_TEST_FILES  = 5           # reservado: NUNCA se toca (ni train ni validación)
@@ -254,7 +258,8 @@ def main():
     )
     # seed fijo: val reproducible. Mismo régimen de muertos que el entrenamiento.
     val_ds = SiPMImputationDataset(X_val, seed=VAL_MASK_SEED,
-                                   n_dead=N_DEAD, dead_mode=DEAD_MODE)
+                                   n_dead=N_DEAD, dead_mode=DEAD_MODE,
+                                   norm_mode=NORM_MODE)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE * 2, shuffle=False,
                             num_workers=0, pin_memory=True)   # num_workers=0 obligatorio en Windows
     print(f"  Val: {len(X_val):,} eventos")
@@ -277,7 +282,7 @@ def main():
                     'run_tag': run_tag, 'model_kwargs': model_kwargs, 'n_params': n_params,
                     'loss': LOSS, 'physics_term': LOSS.split('_')[1] if '_' in LOSS else None,
                     'lambda_dr': LAMBDA_DR, 'lambda_en': LAMBDA_EN, 'huber_delta': HUBER_DELTA,
-                    'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE,
+                    'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE, 'norm_mode': NORM_MODE,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
                     'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
@@ -330,7 +335,8 @@ def main():
         X_train = load_dat_to_dense(f_train, max_events=MAX_EVENTS)
         # seed = epoch → el masking aleatorio cambia en cada época
         train_ds = SiPMImputationDataset(X_train, seed=epoch,
-                                         n_dead=N_DEAD, dead_mode=DEAD_MODE)
+                                         n_dead=N_DEAD, dead_mode=DEAD_MODE,
+                                         norm_mode=NORM_MODE)
         train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
                                   num_workers=0, pin_memory=True)
 
@@ -401,6 +407,7 @@ def main():
                 'val_mae_non':  mae_non,
                 'val_dr':       val_dr,
                 'val_bias':     val_bias,
+                'norm_mode':    NORM_MODE,
             }, ckpt_path)
             flag = '  ✓ best'
         else:
@@ -473,6 +480,11 @@ if __name__ == '__main__':
             shuffle_seed = 0; del argv[i]
         MODEL_KWARGS = {**MODEL_KWARGS, 'shuffle_seed': shuffle_seed}
 
+    if '--norm' in argv:
+        i = argv.index('--norm')
+        assert i + 1 < len(argv) and argv[i + 1] in ('max', 'sum'), "uso: --norm max|sum"
+        NORM_MODE = argv[i + 1]; del argv[i:i + 2]
+
     geom = None
     if '--geom' in argv:
         i = argv.index('--geom')
@@ -531,6 +543,8 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
     if attn > 0:
         RUN_SUFFIX = f'{RUN_SUFFIX}_attn{attn}'           # p.ej. _attn2 → carpeta propia
+    if NORM_MODE != 'max':
+        RUN_SUFFIX = f'{RUN_SUFFIX}_norm{NORM_MODE}'      # p.ej. _normsum → carpeta propia
     RUN_SUFFIX = f'{RUN_SUFFIX}{dead_sfx}'                # p.ej. _dead1-4 / _dead3_scatter
     if tag is not None:
         RUN_SUFFIX = f'{RUN_SUFFIX}_{tag}'                # réplica u otra variante → carpeta propia

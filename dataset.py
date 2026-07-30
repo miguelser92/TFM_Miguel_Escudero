@@ -198,7 +198,8 @@ class SiPMImputationDataset(Dataset):
     """
 
     def __init__(self, X_raw: np.ndarray, seed: int = 0,
-                 n_dead=1, dead_mode: str = 'cluster', nbr=None):
+                 n_dead=1, dead_mode: str = 'cluster', nbr=None,
+                 norm_mode: str = 'max'):
         # ascontiguousarray: garantiza memoria contigua y dtype float32 (acceso rápido;
         # evita sorpresas si X_raw venía de un slicing no contiguo de otro array).
         self.X = np.ascontiguousarray(X_raw, dtype=np.float32)
@@ -213,6 +214,14 @@ class SiPMImputationDataset(Dataset):
         #            detector (CONTROL: mismo nº de muertos, sin contigüidad).
         self.n_dead    = n_dead
         self.dead_mode = dead_mode
+        # ── NORMALIZACIÓN POR EVENTO ──
+        # 'max' (histórico): divide por el máximo post-máscara. Depende de UN canal:
+        #        si el muerto era el más brillante, el factor cambia mucho y target>1.
+        # 'sum' (RchT): divide por la SUMA de los canales visibles. Mucho más estable
+        #        (promedia 60 canales), no la secuestra un canal ruidoso, y es el
+        #        proxy de energía del evento. Escala distinta → la salida sigue lineal.
+        assert norm_mode in ('max', 'sum'), "norm_mode: 'max' | 'sum'"
+        self.norm_mode = norm_mode
         if nbr is None and dead_mode == 'cluster':
             # Import PEREZOSO: hex_geometry importa de dataset, así que a nivel de módulo
             # habría ciclo. Aquí dataset ya está cargado del todo → seguro.
@@ -289,7 +298,8 @@ class SiPMImputationDataset(Dataset):
         x_masked = x_raw.copy()   # copia del evento donde simularemos el fallo
         x_masked[dead_idx] = 0.0  # "matamos" los canales: ponemos su carga a 0
 
-        norm = x_masked.max()     # máximo SOBRE LOS CANALES VISIBLES (post-máscara) = factor de escala
+        # factor de escala sobre los canales VISIBLES (post-máscara)
+        norm = x_masked.max() if self.norm_mode == 'max' else x_masked.sum() / N_ACTIVE
         if norm == 0:
             norm = 1.0   # guard anti división por cero: evento cuyo único canal con señal era el apagado
 
