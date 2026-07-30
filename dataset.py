@@ -199,7 +199,7 @@ class SiPMImputationDataset(Dataset):
 
     def __init__(self, X_raw: np.ndarray, seed: int = 0,
                  n_dead=1, dead_mode: str = 'cluster', nbr=None,
-                 norm_mode: str = 'max'):
+                 norm_mode: str = 'max', channel_norm: bool = False):
         # ascontiguousarray: garantiza memoria contigua y dtype float32 (acceso rápido;
         # evita sorpresas si X_raw venía de un slicing no contiguo de otro array).
         self.X = np.ascontiguousarray(X_raw, dtype=np.float32)
@@ -222,6 +222,17 @@ class SiPMImputationDataset(Dataset):
         #        proxy de energía del evento. Escala distinta → la salida sigue lineal.
         assert norm_mode in ('max', 'sum'), "norm_mode: 'max' | 'sum'"
         self.norm_mode = norm_mode
+        # ── NORMALIZACION POR CANAL (opcional) ──
+        # El detector tiene un gradiente fijo: el canal central recoge ~4.3x mas carga
+        # que el de borde (corr -0.88 con la distancia al centro). Dividir cada canal
+        # por su escala tipica EQUALIZA los 61 -> la red no gasta capacidad aprendiendo
+        # esa estructura conocida. La prediccion se des-equaliza al evaluar.
+        self.channel_norm = channel_norm
+        if channel_norm:
+            from hex_geometry import get_channel_scale
+            self.chan_scale = get_channel_scale()
+        else:
+            self.chan_scale = None
         if nbr is None and dead_mode == 'cluster':
             # Import PEREZOSO: hex_geometry importa de dataset, así que a nivel de módulo
             # habría ciclo. Aquí dataset ya está cargado del todo → seguro.
@@ -265,6 +276,8 @@ class SiPMImputationDataset(Dataset):
         # PyTorch llama a esto para obtener la muestra 'idx'. Aquí fabricamos la muestra
         # de imputación AL VUELO a partir del evento sano X[idx].
         x_raw = self.X[idx].copy()   # .copy(): trabajamos sobre una copia, no tocamos el array compartido
+        # Espacio de trabajo: crudo, o equalizado por canal si channel_norm
+        x_work = x_raw / self.chan_scale if self.channel_norm else x_raw
 
         # ── Qué canales tienen señal y cuáles están a 0 en ESTE evento ──
         active = np.flatnonzero(x_raw > 0)    # índices con carga > 0 (flatnonzero = where(cond)[0])
@@ -295,7 +308,7 @@ class SiPMImputationDataset(Dataset):
         is_modified = int((x_raw[dead_idx] > 0).any())
 
         # ── Apagar los canales elegidos y normalizar POR EVENTO (DESPUÉS de apagar) ──
-        x_masked = x_raw.copy()   # copia del evento donde simularemos el fallo
+        x_masked = x_work.copy()  # copia del evento donde simularemos el fallo
         x_masked[dead_idx] = 0.0  # "matamos" los canales: ponemos su carga a 0
 
         # factor de escala sobre los canales VISIBLES (post-máscara)
@@ -307,7 +320,7 @@ class SiPMImputationDataset(Dataset):
         # target[ch] puede salir > 1 si el canal apagado era el más brillante → es CORRECTO,
         # y obliga a que la salida de la red sea lineal (sin sigmoide/clamp).
         x_input = x_masked / norm        # (61,) entrada: cargas normalizadas con el canal a 0
-        target  = x_raw    / norm        # (61,) objetivo: vector original COMPLETO, misma escala
+        target  = x_work   / norm        # (61,) objetivo: vector original COMPLETO, misma escala
 
         # Máscara binaria que le dice a la red qué canales están apagados
         mask = np.ones(N_ACTIVE, dtype=np.float32)   # 1 = canal presente

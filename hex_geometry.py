@@ -101,3 +101,47 @@ if __name__ == '__main__':
     # Ejemplo: vecinos del sensor 30 (Ich físico)
     print(f"\nVecinos del idx=30 (Ich={IDX_TO_ICH[30]}): "
           f"{[IDX_TO_ICH[j] for j in nbr[30] if j >= 0]}")
+
+
+# ─────────────────────────────────────────────────────────────
+#  ESCALA POR CANAL (para la normalización por canal)
+# ─────────────────────────────────────────────────────────────
+
+_SCALE_CACHE = {}
+DEFAULT_SCALE_NPZ = r'C:\Users\Miguel\OneDrive\MASTER\11_TFM\Código\reports\channel_scale.npz'
+
+
+def get_channel_scale(good_dir=r'E:\Datos TFM\Good\Good', n_files=8,
+                      max_events=60_000, cache_npz=DEFAULT_SCALE_NPZ):
+    """
+    Escala típica de CADA canal: su carga media sobre varios módulos Good,
+    renormalizada a media 1 (para no cambiar la escala global del problema).
+
+    Motivación: el detector tiene un gradiente estructural fijo — el canal central
+    recoge ~4.3x más carga que el de borde (corr −0.88 con la distancia al centro,
+    por el adhesivo negro). Dividir cada canal por su escala EQUALIZA los 61 canales,
+    de modo que la red no gasta capacidad aprendiendo esa estructura ya conocida y
+    puede centrarse en la física del evento.
+
+    Se cachea en disco (npz): es una constante del detector.
+    """
+    import glob
+    from pathlib import Path as _Path
+    key = (good_dir, n_files, max_events)
+    if key in _SCALE_CACHE:
+        return _SCALE_CACHE[key]
+    cache = _Path(cache_npz) if cache_npz else None
+    if cache is not None and cache.exists():
+        scale = np.load(cache)['scale']
+    else:
+        from dataset import load_dat_to_dense
+        acc = [load_dat_to_dense(f, max_events=max_events).mean(axis=0)
+               for f in sorted(glob.glob(str(_Path(good_dir) / '*.dat')))[:n_files]]
+        q = np.mean(acc, axis=0)
+        scale = (q / q.mean()).astype(np.float32)          # media 1
+        scale = np.maximum(scale, 1e-3)                    # guard anti división por ~0
+        if cache is not None:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(cache, scale=scale)
+    _SCALE_CACHE[key] = scale
+    return scale

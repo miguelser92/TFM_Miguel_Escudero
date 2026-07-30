@@ -138,6 +138,10 @@ def load_model(ckpt_path, device):
     model.eval()
     # El preprocesado del eval debe coincidir con el del entrenamiento
     model._norm_mode = ckpt.get('norm_mode', 'max')
+    model._chan_norm = ckpt.get('channel_norm', False)
+    if model._chan_norm:
+        from hex_geometry import get_channel_scale
+        model._chan_scale = get_channel_scale()
     vloss = ckpt.get('val_loss')
     extra = f"val_loss={vloss:.4f}, " if vloss is not None else ''
     print(f"Modelo '{ckpt['arch']}' cargado (epoch {ckpt.get('epoch')}, "
@@ -168,6 +172,11 @@ def impute_channel(model, X_raw, ch_idx, device, batch_size=2048):
 
     for i in range(0, N, batch_size):
         batch = X_raw[i:i+batch_size].copy()           # (b, 61)
+        # Si el modelo se entreno con normalizacion por canal, trabajamos en el
+        # espacio equalizado (y des-equalizamos la prediccion al final).
+        chs = getattr(model, '_chan_scale', None) if getattr(model, '_chan_norm', False) else None
+        if chs is not None:
+            batch = batch / chs
 
         # Apagar el canal y normalizar por el máximo de los canales disponibles
         x_masked = batch.copy()
@@ -189,7 +198,10 @@ def impute_channel(model, X_raw, ch_idx, device, batch_size=2048):
         out  = model(torch.from_numpy(x_in).to(device)).cpu().numpy()   # (b, 61) normalizado
 
         # Reescalar la predicción del canal a unidades crudas y clipear a >=0
-        pred = np.clip(out[:, ch_idx] * norm[:, 0], 0, None)
+        pred = out[:, ch_idx] * norm[:, 0]
+        if chs is not None:
+            pred = pred * chs[ch_idx]                   # volver a unidades crudas
+        pred = np.clip(pred, 0, None)
         pred_raw[i:i+len(batch)] = pred
         X_imp[i:i+len(batch), ch_idx] = pred
 
