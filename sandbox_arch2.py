@@ -258,6 +258,13 @@ def eval_real(arch, out_dir, device, nbr, dist, events):
                         layers=ck.get('layers', 8), heads=ck.get('heads', 8),
                         scalers=ck.get('scalers', False))
     model.load_state_dict(ck['model_state']); model.to(device).eval()
+    # El preprocesado del eval DEBE coincidir con el del entrenamiento (si no, el
+    # resultado se desploma sin que el modelo tenga la culpa).
+    model._norm_mode = ck.get('norm_mode', 'max')
+    model._chan_norm = ck.get('channel_norm', False)
+    if model._chan_norm:
+        from hex_geometry import get_channel_scale
+        model._chan_scale = get_channel_scale()
     xs, ys = load_positions(PSIPM_PATH)
     _, _, test_files = get_file_split(GOOD_DIR)
     X_list = [load_dat_to_dense(f, max_events=events) for f in test_files]
