@@ -66,6 +66,8 @@ def main():
     ap.add_argument('--campaign', default='MULTIDEAD_K8')
     ap.add_argument('--metric', choices=['mean', 'median', 'p90'], default='mean',
                     help='estadistico de la distribucion de dR (por defecto MEDIA = resultado real)')
+    ap.add_argument('--simple', action='store_true',
+                    help='version de UN panel (fallo contiguo, red original vs multi-dead) para el correo')
     ap.add_argument('--tag', default='')
     args = ap.parse_args()
     tag = f'_{args.tag}' if args.tag else ''
@@ -89,6 +91,29 @@ def main():
 
     ks = sorted({k for (m, k) in next(iter(curves.values())) if m == 'cluster'})
     MLAB = args.metric
+
+    # ── Versión SIMPLE: un panel, fallo contiguo, red original vs multi-dead ──
+    if args.simple:
+        fig, ax = plt.subplots(figsize=(7.2, 5.4))
+        ref = next(iter(degr.values()))
+        ax.plot(ks, [ref[('cluster', k)] for k in ks], color='k', ls=':', lw=2,
+                marker='x', ms=7, label='sin imputar (detector degradado)')
+        for run, lab, col in [('imputer_hexcnn_s_mse', 'red entrenada con 1 canal muerto', '#7f7f7f'),
+                              ('imputer_hexcnn_s_mse_dead1-4', 'red entrenada con multi-dead (1-4)', '#c0392b')]:
+            if run in curves:
+                ax.plot(ks, [curves[run][('cluster', k)] for k in ks], color=col, lw=2.4,
+                        marker='o', ms=6, label=lab)
+        ax.set_xlabel('Sensores muertos simultáneos, contiguos (k)', fontsize=11)
+        ax.set_ylabel('Error medio de posición tras imputar (mm)', fontsize=11)
+        ax.set_title('Recuperación frente al tamaño del fallo', fontsize=12)
+        ax.set_xticks(ks); ax.set_ylim(0, None); ax.grid(alpha=0.3); ax.legend(fontsize=9.5)
+        fig.tight_layout()
+        out = OUT_DIR / f'multidead_correo_{args.metric}{tag}.png'
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=160, bbox_inches='tight'); plt.close(fig)
+        print(f"  figura para el correo: {out}")
+        return
+
     fig, axes = plt.subplots(1, 3, figsize=(18.5, 5.2))
 
     # ── Paneles 1-2: comparación de modelos, un panel por régimen de evaluación ──
