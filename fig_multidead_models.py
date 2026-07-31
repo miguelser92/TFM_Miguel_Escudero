@@ -117,16 +117,15 @@ def main():
                  / curves[B_RUN][('cluster', k)] * 100 for k in ks]
         adv_s = [(curves[A_RUN][('scatter', k)] - curves[B_RUN][('scatter', k)])
                  / curves[A_RUN][('scatter', k)] * 100 for k in ks]
-        noise = max(abs(adv_c[0]), abs(adv_s[0]))     # k=1: mismo problema -> ruido puro
-        ax.axhspan(-noise, noise, color='0.85', label=f'noise level (k=1: +/-{noise:.1f}%)')
-        ax.axhline(0, color='k', lw=0.8)
+        noise = max(abs(adv_c[0]), abs(adv_s[0]))     # k=1: mismo problema -> variabilidad pura
+        ax.axhline(0, color='k', lw=1.0)
         ax.plot(ks, adv_c, color='#c0392b', lw=2, marker='o', ms=5,
-                label='contiguous-trained, on contiguous')
+                label='contiguous-trained, on contiguous failures')
         ax.plot(ks, adv_s, color='#2471a3', lw=2, marker='s', ms=5,
-                label='scattered-trained, on scattered')
-        ax.set_title('Does the training regime matter?', fontsize=11)
+                label='scattered-trained, on scattered failures')
+        ax.set_title('Training on the right failure type: how much does it help?', fontsize=11)
         ax.set_xlabel('Number of simultaneous dead sensors (k)')
-        ax.set_ylabel('Advantage of matching the regime (%)')
+        ax.set_ylabel('Error reduction vs the other model (%)')
         ax.set_xticks(ks); ax.grid(alpha=0.3); ax.legend(fontsize=8.5, loc='upper left')
 
     fig.suptitle(f'Multi-dead: training regime and failure size '
