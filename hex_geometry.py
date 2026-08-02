@@ -145,3 +145,55 @@ def get_channel_scale(good_dir=r'E:\Datos TFM\Good\Good', n_files=8,
             np.savez(cache, scale=scale)
     _SCALE_CACHE[key] = scale
     return scale
+
+
+# ─────────────────────────────────────────────────────────────
+#  MATRIZ DE VECINDAD DIRECCIONAL (para la HexConv ANISÓTROPA)
+# ─────────────────────────────────────────────────────────────
+
+def build_directional_neighbor_matrix(x_sipm, y_sipm, nbr: np.ndarray) -> np.ndarray:
+    """
+    Reordena la matriz de vecindad para que la ranura d SIGNIFIQUE la dirección d.
+
+    nbr_dir[i, d] = vecino de i en la dirección canónica d (d = 0..5, separadas
+    60°), o -1 si en esa dirección no hay sensor (borde). Es el requisito de una
+    convolución hexagonal REAL (estilo Zhao et al.): un peso por dirección solo
+    tiene sentido si "ranura" = "dirección", cosa que la matriz original no
+    garantiza (ordena por distancia).
+
+    Las 6 direcciones canónicas se estiman de los propios datos: se toman los
+    ángulos de todas las aristas y se calcula su fase media módulo 60° (media
+    circular, robusta). Cada vecino se asigna al bin más cercano; se verifica que
+    ningún nodo tenga dos vecinos en el mismo bin.
+    """
+    N = nbr.shape[0]
+    # Ángulos de todas las aristas del grafo
+    angs = []
+    for i in range(N):
+        for j in nbr[i]:
+            if j >= 0:
+                angs.append(np.arctan2(y_sipm[int(j)] - y_sipm[i],
+                                       x_sipm[int(j)] - x_sipm[i]))
+    angs = np.asarray(angs)
+    # Fase de referencia módulo 60°, por media circular (robusta al ruido numérico)
+    ref = np.angle(np.mean(np.exp(1j * 6.0 * angs))) / 6.0
+
+    nbr_dir = np.full((N, 6), -1, dtype=np.int64)
+    step = np.pi / 3.0                                   # 60°
+    for i in range(N):
+        for j in nbr[i]:
+            if j < 0:
+                continue
+            ang = np.arctan2(y_sipm[int(j)] - y_sipm[i], x_sipm[int(j)] - x_sipm[i])
+            d = int(np.round((ang - ref) / step)) % 6
+            # Sanidad: el ángulo debe caer cerca del canónico (malla regular)
+            resid = (ang - ref) - np.round((ang - ref) / step) * step
+            assert abs(resid) < 0.15, (
+                f"arista {i}->{int(j)} a {np.degrees(ang):.1f}° no encaja en la rejilla "
+                f"de 60° (residuo {np.degrees(resid):.1f}°)")
+            assert nbr_dir[i, d] == -1, (
+                f"nodo {i}: dos vecinos en la dirección {d} ({nbr_dir[i, d]} y {int(j)})")
+            nbr_dir[i, d] = int(j)
+    # Sanidad global: no se pierde ninguna arista al reordenar
+    assert (nbr_dir >= 0).sum() == (nbr >= 0).sum(), "se perdieron aristas al reordenar"
+    return nbr_dir

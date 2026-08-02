@@ -492,6 +492,11 @@ if __name__ == '__main__':
         assert i + 1 < len(argv) and argv[i + 1] in ('max', 'sum'), "uso: --norm max|sum"
         NORM_MODE = argv[i + 1]; del argv[i:i + 2]
 
+    aniso = False
+    if '--aniso' in argv:
+        aniso = True; argv.remove('--aniso')
+        MODEL_KWARGS = {**MODEL_KWARGS, 'aniso': True}
+
     geom = None
     if '--geom' in argv:
         i = argv.index('--geom')
@@ -550,6 +555,8 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
     if attn > 0:
         RUN_SUFFIX = f'{RUN_SUFFIX}_attn{attn}'           # p.ej. _attn2 → carpeta propia
+    if aniso:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_aniso'                # conv hexagonal direccional (Zhao)
     if NORM_MODE != 'max':
         RUN_SUFFIX = f'{RUN_SUFFIX}_norm{NORM_MODE}'      # p.ej. _normsum → carpeta propia
     if CHANNEL_NORM:

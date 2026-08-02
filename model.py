@@ -24,7 +24,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dataset import N_ACTIVE
-from hex_geometry import get_neighbor_matrix, get_positions, build_edge_vectors
+from hex_geometry import (get_neighbor_matrix, get_positions, build_edge_vectors,
+                          build_directional_neighbor_matrix)
 
 
 def _shuffle_graph(nbr: np.ndarray, seed: int) -> np.ndarray:
@@ -169,16 +170,32 @@ class HexConv(nn.Module):
     Es una graph-convolution restringida al grafo de vecindad del detector.
     """
 
-    def __init__(self, in_f: int, out_f: int, neighbor_matrix, edge_vec=None, geom=None):
+    def __init__(self, in_f: int, out_f: int, neighbor_matrix, edge_vec=None, geom=None,
+                 aniso: bool = False):
         super().__init__()
         # Dos transformaciones lineales con pesos COMPARTIDOS por los 61 nodos (esto es
         # lo que la hace "convolución": el mismo kernel en todas partes):
         self.lin_self  = nn.Linear(in_f, out_f)              # aplica al propio nodo (con bias)
-        self.lin_neigh = nn.Linear(in_f, out_f, bias=False)  # aplica a la MEDIA de sus vecinos (sin bias, para no duplicarlo)
+        if not aniso:
+            # aplica a la MEDIA de sus vecinos (sin bias, para no duplicarlo). En modo
+            # aniso no se crea: lo sustituye lin_dir (evita parámetros muertos).
+            self.lin_neigh = nn.Linear(in_f, out_f, bias=False)
         self.bn = nn.BatchNorm1d(out_f)                      # normaliza la salida (estabiliza el entrenamiento)
         # Grafo de vecindad (61,6) como BUFFER: tensor NO entrenable que se mueve con
         # .to(device) y se guarda en el checkpoint → el grafo viaja con el modelo.
         self.register_buffer('nbr', torch.as_tensor(neighbor_matrix, dtype=torch.long))
+
+        # ── Modo ANISÓTROPO (convolución hexagonal REAL, estilo Zhao et al.) ──
+        # Requiere que neighbor_matrix sea la matriz DIRECCIONAL (ranura d = dirección d,
+        # ver hex_geometry.build_directional_neighbor_matrix). En vez de un peso sobre la
+        # MEDIA (isótropo), un bloque de pesos POR DIRECCIÓN: se concatenan los 6 vecinos
+        # en orden direccional y se proyecta con Linear(6·F → F). Las direcciones sin
+        # sensor (borde) entran como ceros = zero-padding, igual que una conv de imagen.
+        self.aniso = aniso
+        if aniso:
+            assert geom is None, "aniso y geom son excluyentes"
+            k = int(neighbor_matrix.shape[1])
+            self.lin_dir = nn.Linear(k * in_f, out_f, bias=False)
 
         # ── Geometría MÉTRICA (opcional) ──
         # geom=None  → agregación isótropa clásica (media plana de vecinos).
@@ -216,7 +233,13 @@ class HexConv(nn.Module):
         valid = (self.nbr >= 0).to(x.dtype).view(1, N, -1, 1) # (1, N, 6, 1)
         cnt = valid.sum(dim=2).clamp(min=1)                  # (B, N, 1): nº vecinos reales
 
-        if self.geom is None:
+        if self.aniso:
+            # ── Convolución hexagonal ANISÓTROPA: un bloque de pesos por dirección ──
+            # nb ya viene ordenado por dirección (la matriz es direccional) y con ceros
+            # en las direcciones sin sensor → aplanar y proyectar = 6 kernels direccionales.
+            B_, N_, K_, F_ = nb.shape
+            neigh = self.lin_dir(nb.reshape(B_, N_, K_ * F_))   # (B, N, out_f)
+        elif self.geom is None:
             # ── Agregación ISÓTROPA clásica: media plana de los vecinos ──
             # Media SOLO sobre los vecinos reales: anulamos el padding (nb*valid) y dividimos
             # por cuántos vecinos reales hay (3-6 según el nodo). clamp(min=1) evita /0.
@@ -242,10 +265,10 @@ class HexResBlock(nn.Module):
     """Bloque residual de dos HexConv sobre la malla hexagonal."""
 
     def __init__(self, dim: int, neighbor_matrix, dropout: float = 0.1,
-                 edge_vec=None, geom=None):
+                 edge_vec=None, geom=None, aniso: bool = False):
         super().__init__()
-        self.c1   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom)   # 1ª convolución hexagonal (mantiene la dimensión)
-        self.c2   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom)   # 2ª convolución hexagonal
+        self.c1   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom, aniso)   # 1ª convolución hexagonal (mantiene la dimensión)
+        self.c2   = HexConv(dim, dim, neighbor_matrix, edge_vec, geom, aniso)   # 2ª convolución hexagonal
         self.drop = nn.Dropout(dropout)                  # regularización entre las dos convs
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -296,7 +319,8 @@ class HexCNNImputer(nn.Module):
 
     def __init__(self, hidden: int = 48, n_blocks: int = 4, dropout: float = 0.1,
                  psipm_path: str | None = None, shuffle_seed: int | None = None,
-                 geom: str | None = None, attn: int = 0, n_heads: int = 4):
+                 geom: str | None = None, attn: int = 0, n_heads: int = 4,
+                 aniso: bool = False):
         super().__init__()
         # Grafo de vecindad real (61,6), calculado desde psipm.tsv (cacheado). Es el
         # "cableado" que comparten todas las HexConv de abajo.
@@ -305,6 +329,14 @@ class HexCNNImputer(nn.Module):
         # etiquetas del grafo → misma topología, pero desligada de la posición física.
         if shuffle_seed is not None:
             nbr = _shuffle_graph(np.asarray(nbr), shuffle_seed)
+
+        # Convolución ANISÓTROPA (hexagonal real): la ranura pasa a significar DIRECCIÓN.
+        # Incompatible con el grafo barajado (las direcciones perderían sentido) y con geom.
+        if aniso:
+            assert shuffle_seed is None, "aniso + shuffle no tiene sentido (direcciones rotas)"
+            assert geom is None, "aniso y geom son excluyentes"
+            xs, ys = get_positions(psipm_path) if psipm_path else get_positions()
+            nbr = build_directional_neighbor_matrix(xs, ys, np.asarray(nbr))
 
         # Geometría MÉTRICA (opcional): vectores de arista (Δx, Δy) alineados con nbr.
         # geom='vec' (anisótropo) | 'dist' (isótropo) | None (media plana clásica).
@@ -320,7 +352,7 @@ class HexCNNImputer(nn.Module):
         # Pila de bloques residuales hexagonales (cada uno = 2 HexConv). Más bloques =
         # mayor campo receptivo (cada nodo "ve" más lejos en el detector).
         self.blocks = nn.ModuleList([
-            HexResBlock(hidden, nbr, dropout, edge_vec, geom) for _ in range(n_blocks)
+            HexResBlock(hidden, nbr, dropout, edge_vec, geom, aniso) for _ in range(n_blocks)
         ])
 
         # ── Atención global (opcional) ──
