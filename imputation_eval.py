@@ -125,7 +125,25 @@ def _build_sandbox(ckpt, device):
 
 def load_model(ckpt_path, device):
     """Reconstruye la arquitectura (según ckpt['arch']) desde el checkpoint.
-    Acepta runs de producción (best_model.pth + model_kwargs) y de sandbox (best.pth)."""
+    Acepta runs de producción (best_model.pth + model_kwargs), de sandbox (best.pth)
+    y ENSEMBLES (carpeta con ensemble.json que lista los runs miembros)."""
+    ens = Path(ckpt_path).parent / 'ensemble.json'
+    if ens.exists():
+        from model import EnsembleImputer
+        spec = json.loads(ens.read_text(encoding='utf-8'))
+        members = [load_model(Path(RUNS_BASE) / r / 'best_model.pth', device)
+                   for r in spec['members']]
+        model = EnsembleImputer(members).to(device).eval()
+        # El preprocesado debe ser comun a todos los miembros
+        nm = {getattr(m, '_norm_mode', 'max') for m in members}
+        cn = {getattr(m, '_chan_norm', False) for m in members}
+        assert len(nm) == 1 and len(cn) == 1, "miembros con preprocesado distinto"
+        model._norm_mode = nm.pop(); model._chan_norm = cn.pop()
+        if model._chan_norm:
+            from hex_geometry import get_channel_scale
+            model._chan_scale = get_channel_scale()
+        print(f"ENSEMBLE de {len(members)} modelos: {spec['members']}")
+        return model
     ckpt_path = resolve_ckpt_path(ckpt_path)
     # weights_only=False: el checkpoint guarda metadatos (model_kwargs, métricas),
     # no solo tensores. Es un archivo nuestro, así que es seguro.

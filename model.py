@@ -389,6 +389,29 @@ class HexCNNImputer(nn.Module):
         return self.head(h).squeeze(-1)
 
 
+class EnsembleImputer(nn.Module):
+    """
+    Ensemble por promediado de predicciones. Envuelve N modelos ya entrenados y
+    devuelve la media de sus salidas.
+
+    Como es un nn.Module con la misma firma (B,2,61) -> (B,61), funciona tal cual
+    con TODOS los evaluadores (impute_channel, impute_set, eval_total, espectro,
+    multidead...) sin tocar ni una linea de ellos.
+
+    Motivacion: los N modelos son entrenamientos identicos con distinta semilla;
+    sus errores son parcialmente independientes, asi que promediar cancela parte
+    de la varianza. Es la mejora mas barata que existe (coste 0 de entrenamiento).
+    """
+
+    def __init__(self, models):
+        super().__init__()
+        assert len(models) > 0, "ensemble vacio"
+        self.members = nn.ModuleList(models)
+
+    def forward(self, x):
+        return torch.stack([m(x) for m in self.members], dim=0).mean(dim=0)
+
+
 # ─────────────────────────────────────────────────────────────
 # FACTORY
 # ─────────────────────────────────────────────────────────────
