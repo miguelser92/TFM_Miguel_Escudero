@@ -156,10 +156,10 @@ def eval_spectrum_model(run_name, X_list, zones_list, device, fail_ich):
     modified, estratificado por banda del metahexágono. Devuelve métricas + los
     arrays de RchT (para las figuras).
     """
-    from imputation_eval import resolve_ckpt_path
-    ckpt_path = resolve_ckpt_path(Path(RUNS_BASE) / run_name / 'best_model.pth')
+    from imputation_eval import load_ckpt_meta
+    ckpt_path = Path(RUNS_BASE) / run_name / 'best_model.pth'
     model = load_model(ckpt_path, device)
-    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    ckpt = load_ckpt_meta(ckpt_path)
 
     scenarios, spectra = [], {}
     for k, ich in enumerate(fail_ich):

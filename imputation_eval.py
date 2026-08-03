@@ -103,6 +103,29 @@ def resolve_ckpt_path(ckpt_path):
     return p
 
 
+def load_ckpt_meta(ckpt_path):
+    """
+    Metadatos del checkpoint (arch, epoch, ...) para los informes de los evals.
+    Tolerante a ENSEMBLES: esas carpetas no tienen .pth propio, así que se devuelve
+    un resumen sintetico con la lista de miembros. Evita que los evals revienten al
+    hacer el segundo torch.load que solo sirve para rellenar metadatos.
+    """
+    d = Path(ckpt_path).parent
+    ens = d / 'ensemble.json'
+    if ens.exists():
+        spec = json.loads(ens.read_text(encoding='utf-8'))
+        members = spec['members']
+        meta = {'arch': 'ensemble', 'ensemble_members': members,
+                'n_members': len(members), 'epoch': None, 'model_kwargs': {}}
+        # heredamos arch/epoch del primer miembro (informativo)
+        first = resolve_ckpt_path(Path(RUNS_BASE) / members[0] / 'best_model.pth')
+        if first.exists():
+            c0 = torch.load(first, map_location='cpu', weights_only=False)
+            meta['member_arch'] = c0.get('arch')
+        return meta
+    return torch.load(resolve_ckpt_path(ckpt_path), map_location='cpu', weights_only=False)
+
+
 def _build_sandbox(ckpt, device):
     """Reconstruye un modelo de sandbox desde su checkpoint (nbr/dist se recalculan)."""
     from hex_geometry import get_neighbor_matrix
