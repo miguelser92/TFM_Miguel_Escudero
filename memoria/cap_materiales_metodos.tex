@@ -1,16 +1,86 @@
 % =====================================================================
-%  CAPÍTULO: MATERIALES Y MÉTODOS
+%  MATERIALES Y MÉTODOS  —  documento autónomo (compilable tal cual)
 %  TFM — Imputación auto-supervisada de canales SiPM defectuosos
 %        en un detector PET de cristal monolítico hexagonal
 %  Autor: Miguel Escudero
 %
-%  Paquetes recomendados en el preámbulo del documento principal:
-%    \usepackage[utf8]{inputenc} \usepackage[T1]{fontenc}
-%    \usepackage[spanish]{babel} \usepackage{amsmath,amssymb}
-%    \usepackage{graphicx} \usepackage{booktabs} \usepackage{siunitx}
-%    \usepackage{subcaption} \usepackage{multirow} \usepackage{hyperref}
-%    \usepackage{listings} \usepackage{algorithm} \usepackage{algpseudocode}
+%  COMPILACIÓN:
+%    pdflatex cap_materiales_metodos.tex   (dos veces, para el índice y las
+%                                            referencias cruzadas)
+%  o bien, si se dispone de latexmk:
+%    latexmk -pdf cap_materiales_metodos.tex
+%
+%  Para INTEGRARLO en la memoria completa como un capítulo más, basta con
+%  eliminar el preámbulo (hasta \begin{document}) y la línea \end{document}
+%  final, e incluir el resto con \input{cap_materiales_metodos}.
 % =====================================================================
+
+\documentclass[11pt,a4paper]{report}
+
+% ── Codificación e idioma ────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Matemáticas ──────────────────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ── Tablas y figuras ─────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{siunitx}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{float}
+
+% ── Formato de página ────────────────────────────────────────────────
+\usepackage[a4paper,margin=2.7cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Enlaces y referencias cruzadas ───────────────────────────────────
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+
+% ── Configuración de siunitx (separador decimal español) ─────────────
+\sisetup{
+  output-decimal-marker = {.},
+  group-separator = {\,},
+  group-minimum-digits = 4,
+  detect-weight = true,
+  detect-family = true
+}
+
+% ── Ruta de las figuras ──────────────────────────────────────────────
+\graphicspath{{figuras/}}
+
+% =====================================================================
+
+\title{%
+    \vspace*{2cm}
+    {\Huge\bfseries Materiales y métodos}\\[1.2cm]
+    {\Large Imputación auto-supervisada de canales SiPM defectuosos\\
+     en un detector PET de cristal monolítico hexagonal}\\[0.8cm]
+    {\large Trabajo Fin de Máster}
+}
+\author{Miguel Escudero}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\listoftables
+\listoffigures
+\cleardoublepage
 
 \chapter{Materiales y métodos}
 \label{cap:materiales-metodos}
@@ -302,7 +372,7 @@ configuraciones discrepantes.
     vecindad direccional y escala característica por canal. \\
 \texttt{model.py} & Definición de las arquitecturas de producción y del ensemble. \\
 \texttt{train.py} & Bucle de entrenamiento, funciones de pérdida y selección de modelo. \\
-\texttt{imputation_eval.py} & Carga de modelos, rutina de imputación y evaluación monocanal. \\
+\texttt{imputation\_eval.py} & Carga de modelos, rutina de imputación y evaluación monocanal. \\
 \texttt{eval\_total.py} & Evaluación multicanal sobre los 61 sensores y análisis por líneas. \\
 \texttt{eval\_espectro.py} & Conservación del espectro de energía estratificada por zonas. \\
 \texttt{eval\_multidead.py} & Barrido de tamaño de fallo y régimen espacial. \\
@@ -1055,7 +1125,7 @@ sobre el conjunto de eventos:
     cuantifica el desplazamiento sistemático del mapa.
     \item La \textbf{dispersión} (\emph{blur}) es la anchura de la distribución en torno a su media,
     expresada como anchura a media altura equivalente gaussiana,
-    $\mathrm{FWHM} = 2{,}3548\,\sigma$, con $\sigma$ estimada de forma robusta mediante la desviación
+    $\mathrm{FWHM} = 2.3548\,\sigma$, con $\sigma$ estimada de forma robusta mediante la desviación
     absoluta mediana. Corresponde al concepto de resolución espacial en la terminología habitual de
     instrumentación PET.
 \end{itemize}
@@ -1223,7 +1293,7 @@ datos por simetría para la arquitectura isótropa.
 
 \textbf{Configuración.} Se realizaron dos rondas. La primera, con modelos de dimensionado reducido,
 se consideró insuficiente para extraer conclusiones. La segunda empleó configuraciones de
-dimensionado sustancial: transformador de grafo de 8 capas y dimensión 256 ($\sim 4{,}2$ M
+dimensionado sustancial: transformador de grafo de 8 capas y dimensión 256 ($\sim 4.2$ M
 parámetros), U-Net de grafo profunda ($\sim 332$ K) y PNA ($\sim 166$ K), con calentamiento lineal
 del ritmo de aprendizaje, planificador de coseno y selección por métrica alineada con el objetivo.
 
@@ -1235,8 +1305,8 @@ del ritmo de aprendizaje, planificador de coseno y selección por métrica aline
 \textbf{Configuración.} Dos variantes: normalización por evento empleando la suma en lugar del
 máximo, y \textbf{normalización por canal}, en la que cada canal se divide por su escala
 característica estimada de los módulos sanos. Esta segunda variante está motivada por la
-observación de que el canal central registra en promedio $4{,}3$ veces más carga que el del borde,
-con una correlación de $-0{,}88$ con la distancia al centro.
+observación de que el canal central registra en promedio $4.3$ veces más carga que el del borde,
+con una correlación de $-0.88$ con la distancia al centro.
 
 \textbf{Hipótesis.} La normalización por canal debería liberar capacidad del modelo, al no tener que
 aprender un gradiente estructural conocido, y equilibrar la contribución de cada canal al gradiente
@@ -1306,7 +1376,7 @@ carga media y la de sus vecinos. Para cada canal se estima, a partir de los mód
 comportamiento esperado mediante la mediana y la desviación absoluta mediana, y se calcula la
 puntuación tipificada robusta (\emph{modified z-score}):
 \begin{equation}
-    z_c = \frac{f_c - \mathrm{med}_c}{1{,}4826 \cdot \mathrm{MAD}_c},
+    z_c = \frac{f_c - \mathrm{med}_c}{1.4826 \cdot \mathrm{MAD}_c},
     \qquad
     \text{score}_c = \min\left(z_c^{(f)},\, z_c^{(\rho)}\right).
     \label{eq:zscore}
@@ -1314,7 +1384,7 @@ puntuación tipificada robusta (\emph{modified z-score}):
 
 La motivación es que un umbral global resulta necesariamente inadecuado: en un detector sano, el
 canal del borde registra señal cuatro veces menos frecuentemente que el central, con una correlación
-de $-0{,}97$ con la distancia al centro. Se incorporó adicionalmente una normalización por módulo
+de $-0.97$ con la distancia al centro. Se incorporó adicionalmente una normalización por módulo
 que sustrae el desplazamiento global, corrigiendo la dependencia del nivel general de cada detector.
 
 \textbf{Validación.} Se validó mediante \textbf{inyección de fallos con verdad conocida}: se degradan
@@ -1537,7 +1607,7 @@ señal de supervisión debe definirse por evento.
 
 La convolución hexagonal anisótropa, con 3,4 veces más parámetros que la referencia, obtuvo
 $\mathcal{R}_{\text{media}} = 52.26$ frente a $52.32 \pm 0.35$ de las réplicas
-($z = -0{,}2$), es decir, un empate exacto en la métrica principal. Las variantes con geometría
+($z = -0.2$), es decir, un empate exacto en la métrica principal. Las variantes con geometría
 métrica en las aristas produjeron igualmente resultados dentro del margen de ruido.
 
 La interpretación física es que \textbf{el transporte de luz en el cristal monolítico es
@@ -1586,7 +1656,7 @@ medido en el punto $k=1$.
 
 \begin{figure}[htbp]
 \centering
-% \includegraphics[width=\textwidth]{figuras/multidead_models_mean.png}
+\includegraphics[width=\textwidth]{fig-multidead.png}
 \caption{Error absoluto de posición tras la imputación en función del número de sensores averiados
 simultáneamente, para los distintos regímenes de entrenamiento. El panel izquierdo corresponde a
 fallos contiguos (caso realista) y el central a fallos dispersos (control); el panel derecho
@@ -1701,7 +1771,7 @@ reducción observada es del \textbf{1,8\,\% en MAE}, de lo que se concluye que a
 
 El entrenamiento con la pérdida heterocedástica~\eqref{eq:nll} produjo una degradación severa:
 $\mathcal{R}_{\text{media}} = 10.57$, MAE $= 1.31$ y error relativo del 61,5\,\%. La recuperación
-mediana resultó \textbf{negativa} ($-18{,}16$), lo que indica que la imputación deja la posición en
+mediana resultó \textbf{negativa} ($-18.16$), lo que indica que la imputación deja la posición en
 peor situación que la ausencia de imputación.
 
 La causa es un fallo conocido de la formulación: la pérdida~\eqref{eq:nll} permite al modelo reducir
@@ -1724,7 +1794,7 @@ detección en el punto de operación.}
 \label{tab:res-bad-roc}
 \begin{tabular}{lrrr}
 \toprule
-\textbf{Severidad del fallo} & \textbf{AUC} & \textbf{TPR} ($Z=2{,}5$) & \textbf{FPR} \\
+\textbf{Severidad del fallo} & \textbf{AUC} & \textbf{TPR} ($Z=2.5$) & \textbf{FPR} \\
 \midrule
 100\,\% (canal muerto) & 1.000 & 1.000 & 0.009 \\
 70\,\% & 0.998 & 0.952 & 0.009 \\
@@ -1735,7 +1805,7 @@ detección en el punto de operación.}
 \end{table}
 
 El estadístico identifica los canales completamente inactivos con separación perfecta
-($\mathrm{AUC} = 1{,}000$) y mantiene un rendimiento elevado para degradaciones severas. La tasa de
+($\mathrm{AUC} = 1.000$) y mantiene un rendimiento elevado para degradaciones severas. La tasa de
 falsos positivos en los canales de borde resulta equivalente a la de los canales centrales, lo que
 confirma que la normalización por canal resuelve efectivamente el problema del gradiente
 estructural.
@@ -1744,10 +1814,47 @@ Las degradaciones moderadas, en cambio, no resultan separables en el punto de op
 área bajo la curva indica que la información está presente, explotarla exigiría reducir el umbral y
 asumir una tasa de falsos positivos considerablemente mayor.
 
-Aplicado a los 62 módulos \textsc{Bad} con normalización por módulo y umbral $Z = 2{,}0$, el
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{fig-baseline-bad.png}
+\caption{Actividad esperada por sensor en módulos sanos. Izquierda: mapa hexagonal del detector.
+Derecha: dependencia con la distancia al centro, con una correlación de $-0.97$. Este gradiente
+estructural es la razón por la que un umbral de detección global resulta inadecuado.}
+\label{fig:baseline-bad}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{fig-roc-bad.png}
+\caption{Validación del estadístico de detección mediante inyección de fallos con verdad conocida.
+Izquierda: curvas ROC para distintas severidades. Derecha: tasa de detección en el punto de
+operación, desglosada entre canales de borde y centrales.}
+\label{fig:roc-bad}
+\end{figure}
+
+Aplicado a los 62 módulos \textsc{Bad} con normalización por módulo y umbral $Z = 2.0$, el
 procedimiento identifica canales defectuosos en 49 módulos, marcando 281 canales en total, y señala
 16 módulos como globalmente desplazados.
 
+
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{fig-pointspread.png}
+\caption{Distribución bidimensional del error de posición (\emph{point spread}) para el canal
+$\mathrm{Ich}\,30$, antes y después de la imputación. La nube de la derecha es simultáneamente más
+estrecha (menor dispersión) y está mejor centrada (menor sesgo) que la de la izquierda.}
+\label{fig:pointspread}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{fig-error-relativo.png}
+\caption{Error relativo de carga. Izquierda: valor por canal frente a la distancia al centro del
+detector, que evidencia el gradiente centro--borde. Derecha: comparación agregada entre las
+configuraciones evaluadas.}
+\label{fig:error-relativo}
+\end{figure}
 
 \section{Discusión}
 \label{sec:discusion}
@@ -1946,3 +2053,5 @@ Se identifican las siguientes líneas de continuación:
 %          (Zhao et al., 2021), beta-NLL (Seitzer et al., 2022), AdamW (Loshchilov
 %          y Hutter, 2019) y modified z-score (Iglewicz y Hoaglin, 1993).
 % TODO(6): Generar y enlazar las figuras marcadas como [FIGURA SUGERIDA].
+
+\end{document}
