@@ -128,15 +128,32 @@ def main():
     p.write_text(json.dumps(out, indent=2), encoding='utf-8')
     print(f"  JSON guardado: {p}")
 
-    # ── Figura: nube de error 2D (canal Ich30) degradado vs imputado ──
+    # ── Figura: nube de error 2D + perfil 1D con las FWHM (canal Ich30) ──
+    # OJO con la escala: la distribución del error mide décimas de mm, así que el
+    # rango se fija AL PERCENTIL de los datos (no a un valor fijo) y se usa escala
+    # logarítmica; con rango fijo ±4 mm todo cae en un píxel y la figura no dice nada.
     if err_ref['deg'] is not None:
-        fig, ax = plt.subplots(1, 2, figsize=(10, 4.6))
-        for a, key, ttl in [(ax[0], 'deg', 'DEGRADED'), (ax[1], 'imp', 'IMPUTED')]:
-            dx, dy = err_ref[key]
-            a.hist2d(dx, dy, bins=120, range=[[-4, 4], [-4, 4]], cmap='inferno')
-            a.set_title(f'{ttl} — position error (Ich30)'); a.set_xlabel('dx (mm)'); a.set_ylabel('dy (mm)')
-            a.set_aspect('equal')
-        fig.suptitle('Point-spread of the imputation error (tighter = better resolution)')
+        from matplotlib.colors import LogNorm
+        dxd, dyd = err_ref['deg']; dxi, dyi = err_ref['imp']
+        lim = float(np.percentile(np.abs(np.concatenate([dxd, dyd, dxi, dyi])), 99.5))
+        lim = max(lim, 1e-3)
+        fig, ax = plt.subplots(1, 3, figsize=(15, 4.6))
+        for a, (dx, dy), ttl in [(ax[0], (dxd, dyd), 'DEGRADED'), (ax[1], (dxi, dyi), 'IMPUTED')]:
+            H, xe, ye = np.histogram2d(dx, dy, bins=140, range=[[-lim, lim], [-lim, lim]])
+            a.imshow(H.T, origin='lower', extent=[-lim, lim, -lim, lim], cmap='inferno',
+                     norm=LogNorm(vmin=max(H.min(), 1), vmax=H.max()), aspect='equal')
+            a.set_title(f'{ttl} — position error (Ich30)')
+            a.set_xlabel('dx (mm)'); a.set_ylabel('dy (mm)')
+        # Perfil 1D: donde de verdad se ve el estrechamiento
+        bins = np.linspace(-lim, lim, 200)
+        ax[2].hist(dxd, bins=bins, histtype='step', lw=2, color='#c0392b', density=True,
+                   label=f'degraded (FWHM {2.3548*1.4826*np.median(np.abs(dxd-np.median(dxd))):.3f} mm)')
+        ax[2].hist(dxi, bins=bins, histtype='step', lw=2, color='#2471a3', density=True,
+                   label=f'imputed (FWHM {2.3548*1.4826*np.median(np.abs(dxi-np.median(dxi))):.3f} mm)')
+        ax[2].set_xlabel('dx (mm)'); ax[2].set_ylabel('density'); ax[2].set_yscale('log')
+        ax[2].legend(fontsize=8); ax[2].grid(alpha=0.3)
+        ax[2].set_title('1D profile — narrower = better resolution')
+        fig.suptitle('Point-spread of the position error introduced by the dead channel')
         fig.tight_layout()
         p = OUT_DIR / f'resolution_pointspread{tag}.png'
         fig.savefig(p, dpi=130, bbox_inches='tight'); plt.close(fig)
