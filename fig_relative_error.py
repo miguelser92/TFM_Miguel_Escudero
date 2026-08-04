@@ -56,11 +56,13 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 MODELS = [
     ('imputer_hexcnn_s_mse',        'HexGNN s (referencia)'),
     ('ensemble_ref3',               'Ensemble de 3 réplicas'),
+    ('ensemble_mix',                'Ensemble heterogéneo'),
     ('sandbox2_pna',                'PNA'),
     ('imputer_hexcnn_s_mse_aniso',  'HexCNN anisótropa (Zhao)'),
     ('imputer_hexcnn_s_mse_chnorm', 'HexGNN + norm por canal'),
     ('sandbox2_unet2',              'U-Net de grafo'),
     ('sandbox2_xformer',            'Graphormer'),
+    ('imputer_hexcnn_s_mse_hetero', 'Loss heterocedástica (mu+sigma)'),
 ]
 CAMPAIGNS = ('TOTAL', 'ATTN', 'TOTAL_full')     # orden de preferencia
 
