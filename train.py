@@ -118,6 +118,10 @@ DEAD_MODE     = 'cluster'
 # Normalizacion por evento: 'max' (historico, divide por el maximo post-mascara) o
 # 'sum' (RchT/61: mucho mas estable, no la secuestra un solo canal).
 NORM_MODE     = 'max'
+# Loss HETEROCEDASTICA (--hetero): la red predice mu y log-varianza por canal y se
+# entrena con NLL gaussiana  L = (y-mu)^2/(2 sigma^2) + log sigma. Aprende a decir
+# CUANTO se fia de cada prediccion -> util para descartar eventos mal imputados.
+HETERO        = False
 # Normalizacion POR CANAL: divide cada canal por su escala tipica en los Good
 # (equaliza el gradiente centro-borde de ~4.3x). Flag CLI: --chnorm
 CHANNEL_NORM  = False
@@ -285,7 +289,8 @@ def main():
                     'run_tag': run_tag, 'model_kwargs': model_kwargs, 'n_params': n_params,
                     'loss': LOSS, 'physics_term': LOSS.split('_')[1] if '_' in LOSS else None,
                     'lambda_dr': LAMBDA_DR, 'lambda_en': LAMBDA_EN, 'huber_delta': HUBER_DELTA,
-                    'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE, 'norm_mode': NORM_MODE, 'channel_norm': CHANNEL_NORM,
+                    'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE, 'norm_mode': NORM_MODE,
+                    'channel_norm': CHANNEL_NORM, 'hetero': HETERO,
                     'n_epochs': N_EPOCHS, 'batch_size': BATCH_SIZE, 'lr': LR,
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
                     'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
@@ -351,8 +356,13 @@ def main():
             target = target.to(device)
 
             optimizer.zero_grad()
-            out  = model(x_in)
-            loss = loss_fn(out, target)                       # término base (MSE/Huber/MAE)
+            if HETERO:
+                out, logvar = model.forward_hetero(x_in)
+                # NLL gaussiana por canal (equivale a MSE ponderado por 1/sigma^2 + log sigma)
+                loss = (0.5 * torch.exp(-logvar) * (out - target) ** 2 + 0.5 * logvar).mean()
+            else:
+                out  = model(x_in)
+                loss = loss_fn(out, target)                   # término base (MSE/Huber/MAE)
             if phys_term == 'dr':
                 extra = (delta_r(out, target, dead.to(device), xs_t, ys_t) ** 2).mean()  # ΔR²
             elif phys_term == 'en':
@@ -492,6 +502,10 @@ if __name__ == '__main__':
         assert i + 1 < len(argv) and argv[i + 1] in ('max', 'sum'), "uso: --norm max|sum"
         NORM_MODE = argv[i + 1]; del argv[i:i + 2]
 
+    if '--hetero' in argv:
+        HETERO = True; argv.remove('--hetero')
+        MODEL_KWARGS = {**MODEL_KWARGS, 'hetero': True}
+
     aniso = False
     if '--aniso' in argv:
         aniso = True; argv.remove('--aniso')
@@ -555,6 +569,8 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_g{geom}'              # p.ej. _gvec / _gdist → carpeta propia
     if attn > 0:
         RUN_SUFFIX = f'{RUN_SUFFIX}_attn{attn}'           # p.ej. _attn2 → carpeta propia
+    if HETERO:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_hetero'               # predice mu + sigma (NLL gaussiana)
     if aniso:
         RUN_SUFFIX = f'{RUN_SUFFIX}_aniso'                # conv hexagonal direccional (Zhao)
     if NORM_MODE != 'max':

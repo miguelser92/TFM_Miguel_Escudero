@@ -98,12 +98,15 @@ class PNAConv(nn.Module):
         self.bn = nn.BatchNorm1d(out_f)
         nbr_t = torch.as_tensor(neighbor_matrix, dtype=torch.long)
         self.register_buffer('nbr', nbr_t)
-        # Escalas por grado, precalculadas (constantes del detector): (N,1)
-        deg = (nbr_t >= 0).sum(1).to(torch.float32)
-        logd = torch.log(deg + 1.0)
-        delta = logd.mean()                                 # δ = media de log(d+1)
-        self.register_buffer('s_amp', (logd / delta).unsqueeze(-1))          # α=+1
-        self.register_buffer('s_att', (delta / logd).unsqueeze(-1))          # α=−1
+        # Escalas por grado, precalculadas (constantes del detector): (N,1).
+        # Solo se registran si se usan -> los checkpoints entrenados antes de existir
+        # los scalers siguen cargando sin claves sobrantes/faltantes.
+        if scalers:
+            deg = (nbr_t >= 0).sum(1).to(torch.float32)
+            logd = torch.log(deg + 1.0)
+            delta = logd.mean()                             # δ = media de log(d+1)
+            self.register_buffer('s_amp', (logd / delta).unsqueeze(-1))      # α=+1
+            self.register_buffer('s_att', (delta / logd).unsqueeze(-1))      # α=−1
 
     def forward(self, x):                                  # (B, N, F)
         B, N, Fin = x.shape

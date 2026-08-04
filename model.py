@@ -320,7 +320,7 @@ class HexCNNImputer(nn.Module):
     def __init__(self, hidden: int = 48, n_blocks: int = 4, dropout: float = 0.1,
                  psipm_path: str | None = None, shuffle_seed: int | None = None,
                  geom: str | None = None, attn: int = 0, n_heads: int = 4,
-                 aniso: bool = False):
+                 aniso: bool = False, hetero: bool = False):
         super().__init__()
         # Grafo de vecindad real (61,6), calculado desde psipm.tsv (cacheado). Es el
         # "cableado" que comparten todas las HexConv de abajo.
@@ -363,7 +363,12 @@ class HexCNNImputer(nn.Module):
         ])
         self.pos_emb = nn.Parameter(torch.zeros(1, N_ACTIVE, hidden)) if attn > 0 else None
 
-        self.head = nn.Linear(hidden, 1)   # cabeza: de 'hidden' features → 1 escalar por nodo (la carga)
+        # Cabeza: 'hidden' features -> 1 escalar por nodo (la carga). Con hetero=True
+        # saca 2 (mu, log-varianza) para la loss heterocedastica: la red aprende ademas
+        # CUANTA incertidumbre tiene en cada canal. forward() sigue devolviendo solo mu,
+        # asi que todos los evaluadores funcionan sin cambios.
+        self.hetero = hetero
+        self.head = nn.Linear(hidden, 2 if hetero else 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x : (B, 2, 61) → (B, 61)"""
@@ -385,8 +390,26 @@ class HexCNNImputer(nn.Module):
             for ablk in self.attn_blocks:
                 h = ablk(h)                                  # (B, 61, hidden): contexto largo alcance
 
-        # head → (B, 61, 1); squeeze(-1) quita la última dimensión → (B, 61) cargas reconstruidas
-        return self.head(h).squeeze(-1)
+        out = self.head(h)                                   # (B, 61, 1) o (B, 61, 2)
+        if self.hetero:
+            return out[..., 0]                               # solo mu: compatible con los evals
+        return out.squeeze(-1)
+
+    def forward_hetero(self, x: torch.Tensor):
+        """Devuelve (mu, logvar) por canal. Solo con hetero=True (para la loss NLL)."""
+        assert self.hetero, 'el modelo no se construyo con hetero=True'
+        B = x.shape[0]
+        h = self.stem(x.permute(0, 2, 1))
+        h = F.gelu(self.stem_bn(h.reshape(B * N_ACTIVE, -1)).reshape(B, N_ACTIVE, -1))
+        for blk in self.blocks:
+            h = blk(h)
+        if self.pos_emb is not None:
+            h = h + self.pos_emb
+            for ablk in self.attn_blocks:
+                h = ablk(h)
+        out = self.head(h)                                   # (B, 61, 2)
+        # clamp de la log-varianza: evita sigma->0 (loss explota) y sigma enorme (se escaquea)
+        return out[..., 0], out[..., 1].clamp(-7.0, 3.0)
 
 
 class EnsembleImputer(nn.Module):
