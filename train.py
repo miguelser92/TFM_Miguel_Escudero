@@ -91,6 +91,10 @@ PATIENCE      = N_EPOCHS     # = sin corte temprano: entrena el presupuesto comp
                             # guarda el mejor checkpoint por val_mae_mod (ver selección abajo).
                             # Datos infinitos on-the-fly → sin sobreajuste por entrenar las 40.
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
+# Semilla para BARAJAR el orden de rotación de los ficheros de train (flag --rotseed).
+# None = orden alfabético (comportamiento histórico). Ver la nota de cobertura en main():
+# con N_EPOCHS < nº de ficheros el round-robin no da la vuelta y solo se ven los primeros.
+ROT_SEED      = None
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
 # Función de pérdida: 'huber' | 'mae' | 'mse', y variantes PHYSICS-INFORMED con
@@ -257,6 +261,21 @@ def main():
     print(f"  val:  {[f.name for f in val_files]}")
     print(f"  test: {[f.name for f in test_files]}")
 
+    # ── Orden de rotación de los ficheros de entrenamiento ───
+    # La rotación es un round-robin: con N_EPOCHS < len(train_files) NO se da la
+    # vuelta, así que solo se ven los N_EPOCHS PRIMEROS de la lista. Como la lista
+    # va ordenada por nombre, eso significaba entrenar siempre con los módulos de
+    # numeración más baja (auditoría 05/08: 40 de 149, y anormalmente homogéneos
+    # entre sí). Con ROT_SEED se baraja el orden para que la muestra sea aleatoria.
+    if ROT_SEED is not None:
+        rng_rot = np.random.default_rng(ROT_SEED)
+        train_files = [train_files[i] for i in rng_rot.permutation(len(train_files))]
+        print(f"  rotación BARAJADA con semilla {ROT_SEED}")
+    n_vistos = min(N_EPOCHS, len(train_files))
+    print(f"  COBERTURA: {n_vistos}/{len(train_files)} módulos distintos "
+          f"({n_vistos/len(train_files)*100:.0f}%)  |  {MAX_EVENTS:,} eventos/época  "
+          f"→ {N_EPOCHS * MAX_EVENTS:,} muestras totales")
+
     # ── Validación: conjunto FIJO (se carga una vez) ─────────
     print("Cargando archivos de validación...")
     X_val = np.concatenate(
@@ -295,6 +314,11 @@ def main():
                     'weight_decay': WEIGHT_DECAY, 'patience': PATIENCE, 'max_events': MAX_EVENTS,
                     'n_val_files': N_VAL_FILES, 'n_test_files': N_TEST_FILES,
                     'split_seed': SPLIT_SEED, 'device': str(device),
+                    # Cobertura del entrenamiento (auditoría 05/08): cuántos módulos
+                    # distintos ve realmente el modelo y con qué orden de rotación.
+                    'rot_seed': ROT_SEED,
+                    'n_train_files': len(train_files),
+                    'n_modules_seen': min(N_EPOCHS, len(train_files)),
                 },
             )
         except ImportError:
@@ -422,6 +446,11 @@ def main():
                 'val_bias':     val_bias,
                 'norm_mode':    NORM_MODE,
                 'channel_norm': CHANNEL_NORM,
+                # Cobertura: permite saber a posteriori con cuántos módulos se entrenó
+                'rot_seed':       ROT_SEED,
+                'n_epochs':       N_EPOCHS,
+                'max_events':     MAX_EVENTS,
+                'n_modules_seen': min(N_EPOCHS, len(train_files)),
             }, ckpt_path)
             flag = '  ✓ best'
         else:
@@ -548,6 +577,29 @@ if __name__ == '__main__':
             DEAD_MODE = argv[j + 1]; del argv[j:j + 2]
             if DEAD_MODE == 'scatter':
                 dead_sfx += '_scatter'      # 'cluster' es el modo por defecto → sin sufijo
+
+    # --epochs N: presupuesto de épocas (por defecto 40). Con la rotación round-robin,
+    # el nº de épocas ES la cobertura: 149 épocas = los 149 módulos de train.
+    if '--epochs' in argv:
+        i = argv.index('--epochs')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --epochs N"
+        N_EPOCHS = int(argv[i + 1]); del argv[i:i + 2]
+        PATIENCE = N_EPOCHS          # sin parada temprana, igual que el default
+
+    # --maxev N: eventos por época. Bajarlo permite subir épocas manteniendo el
+    # presupuesto total de muestras → aísla la COBERTURA de la cantidad de datos.
+    if '--maxev' in argv:
+        i = argv.index('--maxev')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --maxev N"
+        MAX_EVENTS = int(argv[i + 1]); del argv[i:i + 2]
+
+    # --rotseed [S]: baraja el orden de rotación de los ficheros de train.
+    if '--rotseed' in argv:
+        i = argv.index('--rotseed')
+        if i + 1 < len(argv) and argv[i + 1].isdigit():
+            ROT_SEED = int(argv[i + 1]); del argv[i:i + 2]
+        else:
+            ROT_SEED = 0; del argv[i]
 
     # --tag STR: etiqueta libre al final del nombre de carpeta (para réplicas sin pisar).
     tag = None
