@@ -79,8 +79,10 @@ def mean_charge_per_channel(max_events):
     return tot / np.maximum(cnt, 1)
 
 
-def load_eval(run):
-    for c in CAMPAIGNS:
+def load_eval(run, force_campaign=None):
+    """Devuelve (metricas, campana). Con force_campaign solo acepta esa campana,
+    de modo que todos los modelos se comparen sobre la MISMA base de eventos."""
+    for c in ([force_campaign] if force_campaign else CAMPAIGNS):
         p = RUNS_BASE / run / c / 'eval_total_metrics.json'
         if p.exists():
             return json.load(open(p, encoding='utf-8')), c
@@ -90,6 +92,9 @@ def load_eval(run):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--max-events', type=int, default=600_000)
+    ap.add_argument('--campaign', default=None,
+                    help='fuerza UNA campaña para todos los modelos (comparación homogénea); '
+                         'sin ella se coge la primera disponible de CAMPAIGNS y se avisa')
     ap.add_argument('--tag', default='')
     args = ap.parse_args()
     tag = f'_{args.tag}' if args.tag else ''
@@ -102,9 +107,11 @@ def main():
 
     rows, out = [], {}
     for run, label in MODELS:
-        d, camp = load_eval(run)
+        d, camp = load_eval(run, args.campaign)
         if d is None:
-            print(f"  (sin eval_total: {run})"); continue
+            print(f"  (sin eval_total{' en ' + args.campaign if args.campaign else ''}: {run})")
+            continue
+        n_ev = d.get('max_events_per_file')
         # error relativo por canal y macro
         rel, mae_l = [], []
         for pc in d['per_channel']:
@@ -113,7 +120,7 @@ def main():
             mae_l.append(pc['mae_mod'])
         rel = np.array(rel)
         edge = r_center[[pc['idx'] for pc in d['per_channel']]] >= np.percentile(r_center, 66)
-        out[run] = {'label': label, 'campaign': camp,
+        out[run] = {'label': label, 'campaign': camp, 'max_events_per_file': n_ev,
                     'rel_error_macro_pct': round(float(rel.mean()), 2),
                     'rel_error_median_pct': round(float(np.median(rel)), 2),
                     'rel_error_core_pct': round(float(rel[~edge].mean()), 2),
@@ -124,11 +131,30 @@ def main():
         rows.append((label, out[run]))
 
     print(f"\n=== ERROR RELATIVO DE CARGA (MAE / carga media del canal) ===")
-    print(f"{'modelo':26} {'MAE (ADC)':>10} {'rel MEDIA':>10} {'rel mediana':>12} {'centro':>8} {'borde':>8} {'peor':>8}")
+    print(f"{'modelo':26} {'MAE (ADC)':>10} {'rel MEDIA':>10} {'rel mediana':>12} "
+          f"{'centro':>8} {'borde':>8} {'peor':>8}  {'campana':>12} {'eventos':>9}")
     for label, o in rows:
         print(f"{label:26} {o['mae_macro_adc']:>10.4f} {o['rel_error_macro_pct']:>9.1f}% "
               f"{o['rel_error_median_pct']:>11.1f}% {o['rel_error_core_pct']:>7.1f}% "
-              f"{o['rel_error_edge_pct']:>7.1f}% {o['rel_error_worst_pct']:>7.1f}%")
+              f"{o['rel_error_edge_pct']:>7.1f}% {o['rel_error_worst_pct']:>7.1f}%  "
+              f"{o['campaign']:>12} {str(o['max_events_per_file']):>9}")
+
+    # ── Aviso de comparación NO homogénea ──
+    # El MAE depende del nº de eventos evaluados: la misma referencia da 0.6195 a
+    # 600k y 0.6163 con todos (y recMean 52.66 vs 52.40). Ese desplazamiento es del
+    # orden de las diferencias entre modelos, así que mezclar campañas puede alterar
+    # la ordenación. Además el denominador (carga media) se calcula siempre con
+    # --max-events, que puede no coincidir con la campaña de la que sale el MAE.
+    evs = {o['max_events_per_file'] for _, o in rows}
+    if len(evs) > 1:
+        print(f"\n  *** AVISO: los modelos NO se comparan sobre la misma base de eventos: {sorted(map(str, evs))}")
+        print(f"      El MAE depende del nº de eventos, y el efecto (~0.003 ADC / ~0.26 pts de")
+        print(f"      recMean entre 600k y todos) es del orden de las diferencias entre modelos.")
+        print(f"      Para una comparación homogénea: --campaign TOTAL (y que todos la tengan).")
+    if evs and args.max_events not in evs:
+        print(f"  *** AVISO: el denominador se calcula con {args.max_events:,} eventos, que no")
+        print(f"      coincide con la campaña de algún modelo → numerador y denominador de")
+        print(f"      poblaciones distintas.")
 
     # ── Figura: error relativo por canal frente a la distancia al centro ──
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))

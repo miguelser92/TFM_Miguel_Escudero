@@ -1186,6 +1186,18 @@ y la carga media de dicho canal:
 Se define sobre magnitudes agregadas y no evento a evento, dado que el cociente individual diverge
 cuando la carga real tiende a cero.
 
+\paragraph{Sensibilidad de la métrica al tamaño de muestra.} Conviene advertir de una particularidad
+detectada al auditar el cálculo. El denominador $\bar{R}_c$ no es estrictamente estable: la carga
+media por canal medida sobre los ficheros de test disminuye de forma monótona al aumentar el número
+de eventos considerados (un $2.7\,\%$ de media, hasta un $5.4\,\%$ en el canal más afectado, al pasar
+de \num{150000} a \num{600000} eventos por fichero), lo que revela una deriva de la respuesta a lo
+largo de cada adquisición. En consecuencia, el error relativo debe calcularse con numerador y
+denominador estimados sobre la \textbf{misma} población de eventos; en caso contrario el valor
+absoluto se desplaza en torno a un punto porcentual. Los valores reportados en este trabajo emplean
+\num{600000} eventos por fichero en ambos términos. La \emph{comparación entre modelos} no se ve
+afectada, puesto que el denominador es común a todos ellos y las diferencias relativas se conservan
+exactamente.
+
 \subsection{Estrategia de validación y selección de modelo}
 \label{subsec:validacion}
 
@@ -1484,7 +1496,12 @@ fichero de test.
 \begin{table}[htbp]
 \centering
 \caption{Comparación de arquitecturas. Recuperación de posición (media y percentil 90),
-error absoluto medio de la carga imputada y error relativo. Agregación macro sobre los 61 canales.}
+error absoluto medio de la carga imputada y error relativo. Agregación macro sobre los 61 canales.
+Salvo indicación en contra, la evaluación emplea \num{600000} eventos por fichero de test; los dos
+ensembles y el modelo heterocedástico se evaluaron con \num{700000}. El efecto de esa diferencia,
+estimado reevaluando el modelo de referencia con distintos tamaños de muestra, es de unas dos
+décimas en $\mathcal{R}_{\text{media}}$ y de $0.003$ ADC en el MAE, y actúa en contra de los
+ensembles, de modo que su ventaja no está sobreestimada por este motivo.}
 \label{tab:res-arquitecturas}
 \small
 \begin{tabular}{lrrrrr}
@@ -1497,20 +1514,20 @@ error absoluto medio de la carga imputada y error relativo. Agregación macro so
 \quad ResidualMLP & \num{345981} & --- & 48.30 & 0.741 & --- \\
 \midrule
 \multicolumn{6}{l}{\emph{Red de grafos geométrica}} \\
-\quad HexGNN \texttt{s} (referencia) & \num{38305} & 52.66 & 58.02 & 0.6195 & 29.1 \\
+\quad HexGNN \texttt{s} (referencia) & \num{38305} & 52.66 & 58.02 & 0.6195 & 29.9 \\
 \quad HexGNN \texttt{m} & \num{225217} & --- & 57.92 & 0.627 & --- \\
 \quad HexGNN \texttt{l} & \num{398593} & --- & 57.15 & 0.650 & --- \\
 \midrule
 \multicolumn{6}{l}{\emph{Variantes arquitectónicas}} \\
-\quad PNA & \num{165761} & 52.48 & 58.45 & 0.6309 & 29.6 \\
-\quad Convolución anisótropa & \num{130465} & 52.26 & 57.26 & 0.6293 & 29.5 \\
-\quad U-Net de grafo & \num{331649} & 47.95 & 55.22 & 0.6918 & 32.7 \\
-\quad Graphormer & \num{4234113} & 49.65 & 55.17 & 0.6600 & 30.9 \\
-\quad Normalización por canal & \num{38305} & 50.40 & 55.87 & 0.6442 & 30.3 \\
+\quad PNA & \num{165761} & 52.48 & 58.45 & 0.6309 & 30.4 \\
+\quad Convolución anisótropa & \num{130465} & 52.26 & 57.26 & 0.6293 & 30.4 \\
+\quad U-Net de grafo & \num{331649} & 47.95 & 55.22 & 0.6918 & 33.6 \\
+\quad Graphormer & \num{4234113} & 49.65 & 55.17 & 0.6600 & 31.8 \\
+\quad Normalización por canal & \num{38305} & 50.40 & 55.87 & 0.6442 & 31.2 \\
 \midrule
 \multicolumn{6}{l}{\emph{Ensembles}} \\
-\quad Ensemble homogéneo ($3\times$) & $3\times$\num{38305} & 52.93 & 58.69 & \textbf{0.6110} & \textbf{28.7} \\
-\quad Ensemble heterogéneo ($3\times$) & --- & \textbf{53.21} & \textbf{58.73} & 0.6146 & 28.9 \\
+\quad Ensemble homogéneo ($3\times$) & $3\times$\num{38305} & 52.93 & 58.69 & \textbf{0.6110} & \textbf{29.5} \\
+\quad Ensemble heterogéneo ($3\times$) & --- & \textbf{53.21} & \textbf{58.73} & 0.6146 & 29.7 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1849,7 +1866,7 @@ reducción observada es del \textbf{1,8\,\% en MAE}, de lo que se concluye que a
 \label{subsec:res-hetero}
 
 El entrenamiento con la pérdida heterocedástica~\eqref{eq:nll} produjo una degradación severa:
-$\mathcal{R}_{\text{media}} = 10.57$, MAE $= 1.31$ y error relativo del 61,5\,\%. La recuperación
+$\mathcal{R}_{\text{media}} = 10.57$, MAE $= 1.31$ y error relativo del 63,2\,\%. La recuperación
 mediana resultó \textbf{negativa} ($-18.16$), lo que indica que la imputación deja la posición en
 peor situación que la ausencia de imputación.
 
