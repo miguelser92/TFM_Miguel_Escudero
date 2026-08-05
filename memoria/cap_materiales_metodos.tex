@@ -197,6 +197,32 @@ propios datos sin necesidad de anotación externa, lo que sitúa el enfoque en e
 aprendizaje auto-supervisado por enmascaramiento, análogo conceptualmente a los modelos de lenguaje
 enmascarado o a los \emph{masked autoencoders} en visión por computador.
 
+\paragraph{Fundamento físico de la imputabilidad.} Que el problema admita solución no resulta
+evidente a priori y conviene justificarlo antes de describir el método. La luz de centelleo
+generada por una interacción no se deposita sobre un único fotosensor: el cristal monolítico
+reparte el destello sobre una vecindad de SiPM, de modo que la carga de cada canal constituye una
+muestra local de una distribución de luz continua y extensa. La información asociada a un sensor
+concreto se encuentra, por tanto, \textbf{parcialmente contenida en los sensores que lo rodean}, y
+es precisamente esa redundancia la que hace posible reconstruir su valor. El tratamiento
+superficial del cristal acota lateralmente la propagación de la luz y confina el destello a una
+región de tamaño finito, lo que explica que la redundancia tenga carácter \emph{local}: los vecinos
+inmediatos concentran la mayor parte de la información recuperable, mientras que los sensores
+alejados apenas aportan. Esta observación anticipa un resultado experimental que se presenta más
+adelante (Sección~\ref{subsec:res-anillos}) y motiva el diseño de una arquitectura basada en
+vecindades.
+
+Conviene precisar además en qué consiste realmente la tarea que aprende el modelo, pues la
+formulación ingenua induce a error. La red no aprende una regla del tipo «si un sensor está apagado,
+sustitúyase su valor»: aprende a evaluar si la carga observada en un canal resulta
+\textbf{coherente con la distribución de luz que describen los canales restantes}. Para el cálculo
+del centroide, por otra parte, no es el valor absoluto de carga de un SiPM lo determinante, sino el
+modo en que la luz se reparte entre varios de ellos, lo que refuerza la decisión de normalizar por
+evento discutida en la Sección~\ref{subsec:normalizacion}. Esta formulación tiene una consecuencia
+práctica inmediata sobre el diseño del muestreo: el modelo debe aprender tanto a corregir cuando la
+degradación altera la distribución de luz como a \textbf{abstenerse de corregir} cuando no la
+altera, lo que fundamenta físicamente el esquema de balanceo descrito en la
+Sección~\ref{subsec:generacion-muestras}.
+
 \subsection{Objetivos}
 \label{subsec:objetivos}
 
@@ -382,6 +408,7 @@ configuraciones discrepantes.
 \texttt{sandbox\_arch*.py} & Banco de pruebas de arquitecturas alternativas. \\
 \texttt{bad\_detect.py} & Estadístico de detección de canales defectuosos. \\
 \texttt{bad\_validate.py} & Validación del detector con verdad conocida por inyección. \\
+\texttt{bad\_label.py} & Interfaz de etiquetado manual asistido de los módulos averiados. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1391,6 +1418,31 @@ que sustrae el desplazamiento global, corrigiendo la dependencia del nivel gener
 canales en módulos sanos ---no empleados en la estimación de la referencia--- con severidades del
 100\,\%, 70\,\%, 50\,\% y 30\,\%, y se construye la curva ROC.
 
+\textbf{Construcción de una verdad de referencia en los módulos reales.} La validación por inyección
+acota el rendimiento del estadístico frente a fallos \emph{sintéticos}, pero no resuelve la cuestión
+de fondo: en los módulos averiados reales no existe anotación con la que contrastar las detecciones,
+y el estadístico separa con nitidez los canales completamente inactivos pero no las degradaciones
+parciales (Sección~\ref{subsec:res-bad}). Para cubrir esa carencia se desarrolló una herramienta de
+\textbf{etiquetado manual asistido} (\texttt{bad\_label.py}) que permite revisar los módulos
+defectuosos uno a uno y anotar los canales averiados por inspección visual. La interfaz presenta
+simultáneamente cuatro vistas del mismo módulo: el mapa hexagonal de los 61 sensores, seleccionable
+con el ratón y coloreable por puntuación tipificada, fracción activa o carga media; el \emph{flood
+map} del tramo de eventos considerado; el \emph{flood map} resultante de imputar con el modelo los
+canales marcados, que permite comprobar si la retícula se recompone; y el perfil de puntuación por
+canal frente a la referencia de los módulos sanos. Dos controles deslizantes recorren el fichero de
+eventos ---posición inicial y anchura de la ventana---, lo que hace visibles los fallos
+\emph{intermitentes} que el promedio sobre la adquisición completa enmascara.
+
+El diseño incorpora dos precauciones metodológicas. En primer lugar, el mapa imputado se invalida al
+cambiar de tramo o de selección de canales, y el mapa crudo se recorta al mismo tramo, puesto que
+dos distribuciones construidas con estadística distinta no son comparables visualmente. En segundo
+lugar, las anotaciones se anclan al identificador del módulo efectivamente cargado y no a su
+posición en la lista, de modo que no puedan asignarse al módulo equivocado. El resultado se persiste
+en formato \textsc{json} y registra, junto a los canales marcados manualmente, los que el
+estadístico había propuesto, lo que permite cuantificar a posteriori el grado de acuerdo entre
+ambos procedimientos. Esta anotación constituye la base sobre la que se apoyará la evaluación
+cuantitativa del detector en datos reales, hasta ahora limitada a la validación por inyección.
+
 
 \section{Resultados}
 \label{sec:resultados}
@@ -1833,8 +1885,8 @@ operación, desglosada entre canales de borde y centrales.}
 \end{figure}
 
 Aplicado a los 62 módulos \textsc{Bad} con normalización por módulo y umbral $Z = 2.0$, el
-procedimiento identifica canales defectuosos en 49 módulos, marcando 281 canales en total, y señala
-16 módulos como globalmente desplazados.
+procedimiento identifica canales defectuosos en \textbf{48} de los 62 módulos, marcando
+\textbf{278} canales en total, y señala \textbf{12} módulos como globalmente desplazados.
 
 
 
@@ -1937,6 +1989,14 @@ cola. La distribución de puntuaciones en los módulos reales no presenta bimoda
 indica que ``canal defectuoso'' no constituye una categoría con una firma estadística única sino un
 conjunto heterogéneo de modos de fallo.
 
+\paragraph{Ausencia de verdad de referencia en los módulos averiados.} La validación del detector se
+apoya en fallos inyectados sobre módulos sanos, lo que garantiza una verdad conocida a costa de
+evaluar un modo de fallo idealizado. En los módulos defectuosos reales no se dispone de anotación,
+de modo que las detecciones no pueden contrastarse y el rendimiento medido no es directamente
+extrapolable. La herramienta de etiquetado manual descrita en la Sección~\ref{subsec:exp-bad} se ha
+desarrollado precisamente para levantar esta limitación; la anotación de los módulos y la medida del
+acuerdo con el estadístico automático constituyen trabajo en curso.
+
 \paragraph{Coste de inferencia del ensemble.} La mejor configuración identificada triplica el coste
 de inferencia. Constituye por tanto una mejora en recursos y no en método, extremo que debe
 explicitarse al reportar el resultado.
@@ -2019,6 +2079,11 @@ Se identifican las siguientes líneas de continuación:
     \item \textbf{Ampliación del estadístico de detección} mediante observables sensibles a la forma
     de la distribución de carga y con formulación de dos colas, que permitiría abordar los modos de
     fallo actualmente no cubiertos.
+
+    \item \textbf{Anotación manual completa de los módulos averiados} con la herramienta descrita en
+    la Sección~\ref{subsec:exp-bad}, que proporcionaría la verdad de referencia necesaria para medir
+    el acuerdo entre el criterio experto y el estadístico automático sobre datos reales, y no
+    únicamente sobre fallos inyectados.
 
     \item \textbf{Validación cruzada por módulos}, que permitiría acotar la sensibilidad de los
     resultados a la partición concreta y robustecer las conclusiones referidas a canales
