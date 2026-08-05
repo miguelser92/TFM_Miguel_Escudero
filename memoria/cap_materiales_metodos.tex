@@ -705,12 +705,11 @@ revela que ese subconjunto es \textbf{sensiblemente más homogéneo} que el conj
 desviación típica del número medio de canales activos por evento es de $0.37$ entre los módulos
 vistos, frente a $2.28$ entre los no vistos. El modelo se entrena, por tanto, en un régimen más
 estrecho que el que representa la población real de detectores, y alguno de los módulos reservados
-para test queda apreciablemente fuera de ese régimen. Esta observación es relevante al interpretar
-tanto el comportamiento del canal $\mathrm{Ich}\,31$ (Sección~\ref{sec:discusion}) como el techo de
-rendimiento descrito en los resultados: parte de la limitación podría proceder de la cobertura del
-entrenamiento y no exclusivamente de la información físicamente disponible. Ampliar el presupuesto
-de épocas, o barajar el orden de rotación, permitiría discriminar entre ambas explicaciones y
-constituye la comprobación pendiente más inmediata.
+para test queda apreciablemente fuera de ese régimen. Esta observación resulta relevante al
+interpretar tanto el comportamiento del canal $\mathrm{Ich}\,31$ como el techo de rendimiento
+descrito en los resultados, y motivó el experimento controlado que se presenta en la
+Sección~\ref{subsec:exp-cobertura}, cuyo desenlace permite descartar la cobertura como causa del
+límite observado.
 
 
 \section{Arquitecturas y modelos}
@@ -1430,6 +1429,24 @@ lo reduciría sustancialmente; si estuviera dominado por el límite de informaci
 alteraría. El ensemble actúa por tanto como \emph{instrumento de medida} de la descomposición
 sesgo-varianza.
 
+\subsection{Cobertura del conjunto de entrenamiento}
+\label{subsec:exp-cobertura}
+
+\textbf{Objetivo.} Determinar si el techo de rendimiento observado procede del límite de información
+físicamente disponible o, por el contrario, de que el modelo se entrena con una fracción reducida y
+poco diversa de los módulos disponibles (Sección~\ref{subsec:carga-entrenamiento}).
+
+\textbf{Hipótesis.} Si la cobertura fuese la causa, entrenar sobre los 149 módulos debería mejorar
+la recuperación de posición de forma apreciable.
+
+\textbf{Configuración.} El experimento se diseñó a \textbf{coste computacional constante}, de modo
+que la única variable que cambia sea la diversidad de módulos y no la cantidad de datos. Se
+mantiene el número total de muestras reduciendo proporcionalmente los eventos por época: 149 épocas
+de \num{107000} eventos equivalen a \num{16} millones de muestras, igual que las 40 épocas de
+\num{400000} del protocolo original, y el número de lotes procesados coincide (unos \num{31000}) en
+ambos casos. Se baraja además el orden de rotación, dado que la tasa de aprendizaje decae con la
+época y, en orden alfabético, los módulos finales apenas contribuirían a la optimización.
+
 \subsection{Detección de canales defectuosos y aplicación a módulos reales}
 \label{subsec:exp-bad}
 
@@ -1877,6 +1894,65 @@ de declarar mayor incertidumbre. La corrección estándar consiste en un entrena
 con calentamiento bajo error cuadrático puro, o en el empleo de la formulación $\beta$-NLL. Se
 documenta como línea de trabajo futuro.
 
+\subsection{Cobertura del conjunto de entrenamiento}
+\label{subsec:res-cobertura}
+
+El experimento descrito en la Sección~\ref{subsec:exp-cobertura} arroja un resultado nítido y con
+dos caras.
+
+\begin{table}[htbp]
+\centering
+\caption{Efecto de entrenar con la totalidad de los módulos disponibles, a coste computacional
+constante. Agregación macro sobre los 61 canales, \num{600000} eventos por fichero de test en ambos
+casos.}
+\label{tab:res-cobertura}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Magnitud} & \textbf{40 módulos} & \textbf{149 módulos} & \textbf{Diferencia} \\
+\midrule
+$\mathcal{R}_{p90}$ macro (\%) & 58.02 & 57.89 & $-0.13$ \\
+$\mathcal{R}_{\text{media}}$ macro (\%) & 52.66 & 52.63 & $-0.02$ \\
+$\mathcal{R}_{\text{mediana}}$ macro (\%) & 51.55 & 52.78 & $+1.23$ \\
+MAE (ADC) & 0.620 & 0.616 & $-0.004$ \\
+\midrule
+Desviación entre canales (pts) & 4.49 & \textbf{3.77} & $-16\,\%$ \\
+Recorrido entre canales (pts) & 25.2 & \textbf{15.4} & $-39\,\%$ \\
+Peor canal (\%) & 38.6 & \textbf{47.9} & $\mathbf{+9.3}$ \\
+Canal $\mathrm{Ich}\,31$ (\%) & 38.6 & \textbf{49.5} & $\mathbf{+11.0}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{En el rendimiento medio, ningún efecto.} La comparación pareada canal a canal arroja una
+diferencia media de $-0.13$ puntos, con un estadístico $t = -0.49$ que no permite rechazar la
+hipótesis nula, y solo 26 de los 61 canales mejoran, proporción indistinguible del azar. La
+recuperación media queda en $52.63\,\%$, dentro de la banda de las réplicas
+($52.32 \pm 0.35$). \textbf{El límite de rendimiento no procede de la cobertura del entrenamiento},
+sino de la información físicamente disponible en los canales supervivientes. Este resultado
+convierte en comprobación experimental directa lo que hasta ahora era una inferencia a partir de la
+saturación de las distintas variantes arquitectónicas.
+
+\paragraph{En la homogeneidad del detector, un efecto claro.} La dispersión entre canales se reduce
+un $16\,\%$ y el recorrido entre el mejor y el peor sensor casi un $40\,\%$. El peor canal pasa de
+$38.6\,\%$ a $47.9\,\%$, una mejora de $9.3$ puntos que, contrastada con la banda de las réplicas
+para esa misma magnitud ($41.4 \pm 2.52$), corresponde a $z = +2.6$ y resulta por tanto
+estadísticamente significativa.
+
+\paragraph{Resolución del comportamiento anómalo de \texorpdfstring{$\mathrm{Ich}\,31$}{Ich 31}.}
+Este canal, identificado sucesivamente como sensor defectuoso y como manifestación de la
+variabilidad de ganancia entre módulos, mejora $11.0$ puntos al ampliar la cobertura. La
+interpretación definitiva es que \textbf{los módulos de test en los que fallaba se encontraban fuera
+del régimen estadístico representado en el entrenamiento}: no se trataba de un canal
+intrínsecamente problemático, sino de una configuración de detector que el modelo nunca había
+observado. Deja de constituir una anomalía del sensor para pasar a ser una manifestación medible de
+la cobertura del conjunto de entrenamiento.
+
+\paragraph{Implicación práctica.} Ampliar la cobertura no mejora el rendimiento promedio, pero
+\textbf{homogeneiza la respuesta del detector sin coste computacional adicional}. En un dispositivo
+real, donde la garantía relevante es que ningún sensor se degrade de forma catastrófica, elevar el
+peor caso nueve puntos resulta preferible a una mejora marginal de la media.
+
 \subsection{Detección de canales defectuosos}
 \label{subsec:res-bad}
 
@@ -2022,10 +2098,11 @@ computacional, lo que impide estimar la sensibilidad de los resultados a la part
 con una rotación cíclica sobre la lista ordenada de ficheros, hace que el modelo utilice 40 de los
 149 módulos disponibles, y que sean siempre los mismos. Como se detalla en la
 Sección~\ref{subsec:carga-entrenamiento}, ese subconjunto resulta además más homogéneo que la
-población completa. Todas las comparaciones entre modelos son válidas, puesto que comparten
-protocolo, pero el rendimiento \emph{absoluto} está previsiblemente subestimado y la atribución del
-techo observado a un límite de información física queda pendiente de comprobación con cobertura
-completa.
+población completa. El experimento de la Sección~\ref{subsec:res-cobertura} demuestra que esta
+limitación \textbf{no afecta al rendimiento medio} ---y por tanto no compromete ninguna de las
+comparaciones entre modelos---, pero sí a la \emph{homogeneidad} entre canales: el protocolo de
+producción subestima el peor caso en unos nueve puntos. Para trabajo posterior se recomienda adoptar
+la cobertura completa, que no conlleva coste adicional.
 
 \paragraph{Ausencia de calibración y filtrado en energía.} El conjunto incluye eventos Compton y de
 fondo sin calibración de ganancia. Aunque el diseño diferencial cancela estos efectos en la
