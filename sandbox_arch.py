@@ -183,6 +183,77 @@ def evaluate(model, loader, device):
     return tot_loss / max(n, 1), err_mod / max(n_mod, 1)
 
 
+def eval_real(arch, out_dir, device, nbr, dist, events):
+    """
+    Métrica REAL sobre los archivos de TEST: recuperación p90 macro y MAE macro,
+    con el mismo protocolo que eval_total.py.
+
+    Persiste el resultado en un JSON dentro de la carpeta del run. La ronda 1 de
+    este banco de pruebas solo dejaba los números por consola, así que no había
+    forma de recuperarlos ni de auditarlos después; esto lo corrige.
+    """
+    import json, datetime
+    from imputation_eval import impute_channel, compute_xy
+
+    ck = torch.load(out_dir / 'best.pth', map_location=device, weights_only=False)
+    dim = ck.get('dim')
+    if arch == 'transformer':
+        model = GraphTransformer(dim=dim, heads=ck.get('heads', 4),
+                                 layers=ck.get('layers', 4), dist=dist)
+    else:
+        model = GraphUNet(dim=dim, nbr=nbr)
+    model.load_state_dict(ck['model_state'])
+    model.to(device).eval()
+    # El preprocesado del eval DEBE coincidir con el del entrenamiento. Este banco
+    # siempre entrenó con normalización por el máximo y sin normalización por canal.
+    model._norm_mode = ck.get('norm_mode', 'max')
+    model._chan_norm = ck.get('channel_norm', False)
+
+    xs, ys = load_positions(PSIPM_PATH)
+    _, _, test_files = get_file_split(GOOD_DIR, n_val=N_VAL, n_test=N_TEST, seed=SPLIT_SEED)
+    X_list = [load_dat_to_dense(f, max_events=events) for f in test_files]
+    oxy = [compute_xy(X, xs, ys) for X in X_list]
+
+    recs, maes = [], []
+    for c in range(N_ACTIVE):
+        dRdeg, dRimp, errs = [], [], []
+        for X, (ox, oy) in zip(X_list, oxy):
+            mod = X[:, c] > 0
+            if mod.sum() < 100:
+                continue
+            Xd = X.copy(); Xd[:, c] = 0.0
+            dx, dy = compute_xy(Xd, xs, ys)
+            dRdeg.append(np.sqrt((dx - ox) ** 2 + (dy - oy) ** 2)[mod])
+            Xi, pred = impute_channel(model, X, c, device)
+            ix, iy = compute_xy(Xi, xs, ys)
+            dRimp.append(np.sqrt((ix - ox) ** 2 + (iy - oy) ** 2)[mod])
+            errs.append(np.abs(pred[mod] - X[mod, c]))
+        if not dRdeg:
+            continue
+        pd_ = np.percentile(np.concatenate(dRdeg), 90)
+        pi_ = np.percentile(np.concatenate(dRimp), 90)
+        recs.append((pd_ - pi_) / pd_ * 100 if pd_ > 0 else 0.0)
+        maes.append(float(np.concatenate(errs).mean()))
+        if (c + 1) % 15 == 0:
+            print(f"  {c+1}/{N_ACTIVE} canales")
+
+    rec, mae = float(np.mean(recs)), float(np.mean(maes))
+    print(f"\n=== MÉTRICA REAL ({arch}, {events} ev/archivo, macro {len(recs)} canales) ===")
+    print(f"  recuperación p90 macro : {rec:.2f} %")
+    print(f"  MAE macro              : {mae:.4f} ADC")
+
+    out = {'arch': arch, 'events': events, 'recov_p90_macro': round(rec, 2),
+           'mae_macro': round(mae, 4), 'train_epoch': ck.get('epoch'),
+           'val_mae_mod': ck.get('val_mae_mod'), 'dim': dim,
+           'n_channels': len(recs),
+           'recov_p90_per_channel': [round(float(v), 2) for v in recs],
+           'generated': datetime.datetime.now().isoformat(timespec='seconds')}
+    p = out_dir / f'eval_real_{events}.json'
+    p.write_text(json.dumps(out, indent=2), encoding='utf-8')
+    print(f"  JSON guardado: {p}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('arch', choices=['transformer', 'unet'])
@@ -190,6 +261,10 @@ def main():
     ap.add_argument('--dim', type=int, default=None)
     ap.add_argument('--heads', type=int, default=4)
     ap.add_argument('--layers', type=int, default=4)
+    ap.add_argument('--eval', action='store_true',
+                    help='NO entrena: evalúa best.pth sobre test y persiste el JSON')
+    ap.add_argument('--events', type=int, default=60_000,
+                    help='eventos por archivo de test en --eval')
     args = ap.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -198,6 +273,12 @@ def main():
     # matriz de distancias normalizada (para el sesgo espacial del transformer)
     dxy = np.hypot(xs[:, None] - xs, ys[:, None] - ys)
     dist = dxy / np.median(dxy[dxy > 0])
+
+    out_dir = Path(RUNS_BASE) / f'sandbox_{args.arch}'
+    if args.eval:
+        assert (out_dir / 'best.pth').exists(), f"no hay best.pth en {out_dir}"
+        eval_real(args.arch, out_dir, device, nbr, dist, args.events)
+        return
 
     if args.arch == 'transformer':
         dim = args.dim or 96
@@ -217,7 +298,6 @@ def main():
     opt = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     sched = CosineAnnealingLR(opt, T_max=args.epochs, eta_min=LR / 100)
 
-    out_dir = Path(RUNS_BASE) / f'sandbox_{args.arch}'
     out_dir.mkdir(parents=True, exist_ok=True)
     best = 1e9
     for epoch in range(1, args.epochs + 1):
@@ -239,7 +319,10 @@ def main():
         if vmae < best:
             best = vmae
             torch.save({'arch': args.arch, 'model_state': model.state_dict(),
-                        'epoch': epoch, 'val_mae_mod': vmae, 'dim': dim}, out_dir / 'best.pth')
+                        'epoch': epoch, 'val_mae_mod': vmae, 'dim': dim,
+                        'heads': args.heads, 'layers': args.layers,
+                        'norm_mode': 'max', 'channel_norm': False},
+                       out_dir / 'best.pth')
             flag = '  ✓ best'
         print(f"Epoch {epoch:3d}/{args.epochs} | val_loss={vloss:.4f} "
               f"val_mae_mod={vmae:.4f}{flag}")
