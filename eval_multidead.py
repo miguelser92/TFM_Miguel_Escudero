@@ -143,8 +143,16 @@ def impute_set(model, X_raw, dead_idx, device, batch_size=2048):
     X_imp = X_raw.copy()
     pred  = np.zeros((N, len(dead_idx)), dtype=np.float32)
 
+    # Si el modelo se entreno con normalizacion POR CANAL hay que trabajar en el
+    # espacio equalizado y des-equalizar la prediccion, igual que impute_channel.
+    # Sin esto el preprocesado no coincidiria con el del entrenamiento y las
+    # metricas saldrian corruptas en silencio.
+    chs = getattr(model, '_chan_scale', None) if getattr(model, '_chan_norm', False) else None
+
     for i in range(0, N, batch_size):
         batch = X_raw[i:i + batch_size]
+        if chs is not None:
+            batch = batch / chs
 
         x_masked = batch.copy()
         x_masked[:, dead_idx] = 0.0
@@ -162,7 +170,10 @@ def impute_set(model, X_raw, dead_idx, device, batch_size=2048):
         with torch.no_grad():
             out = model(torch.from_numpy(x_in).to(device)).cpu().numpy()
 
-        p = np.clip(out[:, dead_idx] * norm, 0, None)  # (b, k) a unidades crudas
+        p = out[:, dead_idx] * norm                    # (b, k) deshacer la norma del evento
+        if chs is not None:
+            p = p * chs[dead_idx]                      # deshacer la equalizacion por canal
+        p = np.clip(p, 0, None)                        # unidades crudas, sin negativos
         pred[i:i + len(batch)] = p
         X_imp[i:i + len(batch)][:, dead_idx] = p
 

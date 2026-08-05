@@ -698,6 +698,20 @@ El conjunto de validación, por el contrario, se carga \textbf{una única vez} y
 enmascaramiento \textbf{fija}, de modo que la métrica de validación es exactamente comparable entre
 épocas y entre modelos.
 
+\paragraph{Cobertura efectiva del conjunto de entrenamiento.} La rotación cíclica sobre una lista
+ordenada implica que los 40 módulos empleados no son una muestra aleatoria de los 149 disponibles,
+sino los 40 primeros en orden de numeración. Una inspección posterior de las estadísticas por módulo
+revela que ese subconjunto es \textbf{sensiblemente más homogéneo} que el conjunto completo: la
+desviación típica del número medio de canales activos por evento es de $0.37$ entre los módulos
+vistos, frente a $2.28$ entre los no vistos. El modelo se entrena, por tanto, en un régimen más
+estrecho que el que representa la población real de detectores, y alguno de los módulos reservados
+para test queda apreciablemente fuera de ese régimen. Esta observación es relevante al interpretar
+tanto el comportamiento del canal $\mathrm{Ich}\,31$ (Sección~\ref{sec:discusion}) como el techo de
+rendimiento descrito en los resultados: parte de la limitación podría proceder de la cobertura del
+entrenamiento y no exclusivamente de la información físicamente disponible. Ampliar el presupuesto
+de épocas, o barajar el orden de rotación, permitiría discriminar entre ambas explicaciones y
+constituye la comprobación pendiente más inmediata.
+
 
 \section{Arquitecturas y modelos}
 \label{sec:arquitecturas}
@@ -1218,6 +1232,19 @@ que la inicialización de pesos y el orden de los lotes varían entre ejecucione
 omisión, esta decisión permitió \textbf{cuantificar la variabilidad entre entrenamientos} mediante
 réplicas independientes (Sección~\ref{subsec:exp-replicas}), obteniendo la barra de error necesaria
 para juzgar la significación de las comparaciones.
+
+\paragraph{Alcance de la barra de error.} Conviene precisar qué variabilidad captura exactamente ese
+procedimiento. La semilla que gobierna el enmascaramiento aleatorio depende únicamente del índice de
+época, por lo que \textbf{todas las réplicas recorren la misma secuencia de canales enmascarados}:
+difieren en la inicialización de los pesos y en el orden de los lotes, pero no en los datos que ven.
+La dispersión medida es, en consecuencia, la de la \emph{optimización}, y constituye una cota
+inferior de la incertidumbre total, que incluiría además la variabilidad debida al muestreo del
+enmascaramiento. Los contrastes de significación basados en ella son por tanto conservadores en el
+sentido de que podrían declarar significativa una diferencia que una barra de error completa
+absorbería. Esta observación ofrece además una explicación plausible de que el ensemble de réplicas
+homogéneas aporte una mejora menor que el de arquitecturas distintas
+(Sección~\ref{subsec:res-ensemble}): sus miembros comparten no solo la arquitectura, sino también la
+realización concreta del enmascaramiento.
 
 
 \section{Experimentos realizados}
@@ -1973,6 +2000,15 @@ módulos, y por tanto de la necesidad de calibración.
 
 \paragraph{Ausencia de validación cruzada.} No se ha realizado validación cruzada por coste
 computacional, lo que impide estimar la sensibilidad de los resultados a la partición concreta.
+
+\paragraph{Cobertura parcial del conjunto de entrenamiento.} El presupuesto de 40 épocas, combinado
+con una rotación cíclica sobre la lista ordenada de ficheros, hace que el modelo utilice 40 de los
+149 módulos disponibles, y que sean siempre los mismos. Como se detalla en la
+Sección~\ref{subsec:carga-entrenamiento}, ese subconjunto resulta además más homogéneo que la
+población completa. Todas las comparaciones entre modelos son válidas, puesto que comparten
+protocolo, pero el rendimiento \emph{absoluto} está previsiblemente subestimado y la atribución del
+techo observado a un límite de información física queda pendiente de comprobación con cobertura
+completa.
 
 \paragraph{Ausencia de calibración y filtrado en energía.} El conjunto incluye eventos Compton y de
 fondo sin calibración de ganancia. Aunque el diseño diferencial cancela estos efectos en la

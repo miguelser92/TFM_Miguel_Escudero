@@ -124,8 +124,13 @@ def get_channel_scale(good_dir=r'E:\Datos TFM\Good\Good', n_files=8,
     puede centrarse en la física del evento.
 
     Se cachea en disco (npz): es una constante del detector.
+
+    OJO (auditoría): la escala se estima SOLO con módulos de TRAIN. La versión
+    inicial cogía los n_files primeros del directorio, entre los que caía
+    datas013 (validación) → fuga leve val→preprocesado. Afectaba únicamente a los
+    runs con --chnorm. El npz ya cacheado se generó con aquella versión: bórralo
+    si quieres regenerar la escala limpia (y reentrenar los runs que la usen).
     """
-    import glob
     from pathlib import Path as _Path
     key = (good_dir, n_files, max_events)
     if key in _SCALE_CACHE:
@@ -134,9 +139,10 @@ def get_channel_scale(good_dir=r'E:\Datos TFM\Good\Good', n_files=8,
     if cache is not None and cache.exists():
         scale = np.load(cache)['scale']
     else:
-        from dataset import load_dat_to_dense
+        from dataset import load_dat_to_dense, get_file_split
+        train_files, _, _ = get_file_split(good_dir)      # nunca val ni test
         acc = [load_dat_to_dense(f, max_events=max_events).mean(axis=0)
-               for f in sorted(glob.glob(str(_Path(good_dir) / '*.dat')))[:n_files]]
+               for f in train_files[:n_files]]
         q = np.mean(acc, axis=0)
         scale = (q / q.mean()).astype(np.float32)          # media 1
         scale = np.maximum(scale, 1e-3)                    # guard anti división por ~0
