@@ -91,6 +91,10 @@ PATIENCE      = N_EPOCHS     # = sin corte temprano: entrena el presupuesto comp
                             # guarda el mejor checkpoint por val_mae_mod (ver selección abajo).
                             # Datos infinitos on-the-fly → sin sobreajuste por entrenar las 40.
 MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
+# Eventos TOTALES del conjunto de validación. Va aparte de MAX_EVENTS a propósito:
+# si dependiera de él, bajar --maxev encogería también la validación y el val_mae_mod
+# dejaría de ser comparable entre runs (que es justo lo que hay que poder comparar).
+VAL_MAX_EVENTS = 400_000
 # Semilla para BARAJAR el orden de rotación de los ficheros de train (flag --rotseed).
 # None = orden alfabético (comportamiento histórico). Ver la nota de cobertura en main():
 # con N_EPOCHS < nº de ficheros el round-robin no da la vuelta y solo se ven los primeros.
@@ -279,7 +283,7 @@ def main():
     # ── Validación: conjunto FIJO (se carga una vez) ─────────
     print("Cargando archivos de validación...")
     X_val = np.concatenate(
-        [load_dat_to_dense(f, max_events=MAX_EVENTS // len(val_files)) for f in val_files],
+        [load_dat_to_dense(f, max_events=VAL_MAX_EVENTS // len(val_files)) for f in val_files],
         axis=0,
     )
     # seed fijo: val reproducible. Mismo régimen de muertos que el entrenamiento.
