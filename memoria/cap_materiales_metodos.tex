@@ -1556,6 +1556,48 @@ los baselines neuronales sin prior geométrico. En segundo lugar, y de forma con
 \texttt{l}, con 6 y 10 veces más parámetros, no superan a \texttt{s}. En tercer lugar, ninguna de las
 variantes arquitectónicas exploradas supera de forma consistente al modelo de referencia.
 
+\paragraph{La media oculta una diferencia relevante en robustez.} Los agregados de la
+Tabla~\ref{tab:res-arquitecturas} no reflejan el comportamiento del \emph{peor} sensor, que en un
+detector real es la garantía que importa. Atendiendo a esa magnitud, el panorama cambia:
+
+\begin{table}[htbp]
+\centering
+\caption{Homogeneidad de la respuesta entre canales. El peor canal es el valor mínimo de
+$\mathcal{R}_{p90}$ sobre los 61 sensores, y la dispersión su desviación típica. Un valor negativo
+indica que la imputación degrada la posición más que el propio fallo.}
+\label{tab:res-robustez}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Modelo} & \textbf{Params} & $\mathcal{R}_{\text{media}}$ (\%) & \textbf{Peor canal} (\%) &
+\textbf{Dispersión} \\
+\midrule
+DeepMLP & \num{500541} & 45.90 & 12.2 & 9.28 \\
+ResidualMLP & \num{345981} & 44.81 & $\mathbf{-27.3}$ & 11.97 \\
+\midrule
+HexGNN \texttt{s} (referencia) & \num{38305} & 52.66 & 38.6 & 4.49 \\
+HexGNN \texttt{m} & \num{225217} & 52.64 & \textbf{47.6} & 3.91 \\
+HexGNN \texttt{l} & \num{398593} & 51.96 & 46.4 & 3.97 \\
+HexGNN \texttt{s}, cobertura completa & \num{38305} & 52.63 & \textbf{47.9} & \textbf{3.77} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+De aquí se desprenden dos observaciones. La primera afecta a los baselines: el ResidualMLP no
+solo rinde peor en promedio, sino que en su canal más desfavorable \textbf{la imputación empeora la
+posición respecto a no imputar en absoluto}, con una dispersión entre canales tres veces superior a
+la de cualquier modelo de grafo. La superioridad del prior geométrico es, por tanto, aún más marcada
+en robustez que en rendimiento medio.
+
+La segunda matiza la conclusión sobre el escalado. Aunque el aumento de capacidad no mejora la
+media, \textbf{sí mejora sustancialmente el peor caso}: la configuración \texttt{m} eleva el canal
+más desfavorable de $38.6\,\%$ a $47.6\,\%$. Resulta llamativo que la ampliación de la cobertura de
+entrenamiento (Sección~\ref{subsec:res-cobertura}) alcance prácticamente el mismo valor
+($47.9\,\%$) manteniendo los \num{38305} parámetros originales. Dos intervenciones independientes
+---más capacidad y más diversidad de módulos--- convergen al mismo nivel de homogeneidad, lo que
+sugiere la existencia de un límite de robustez alcanzable análogo al techo observado en el
+rendimiento medio.
+
 \subsection{Variabilidad entre entrenamientos}
 \label{subsec:res-replicas}
 
@@ -1950,6 +1992,16 @@ relevante--- el peor caso mejora sustancialmente: la combinación más desfavora
 evaluado sobre eventos de borde, pasa de $52.8\,\%$ a $65.8\,\%$. Nueve de las quince combinaciones
 de canal y zona mejoran.
 
+\paragraph{Resolución espacial y comparación con métodos clásicos.} Las dos magnitudes restantes se
+mantienen sin cambios apreciables, lo que resulta coherente con la ausencia de efecto sobre el
+rendimiento medio. La recuperación del emborronamiento mejora de forma marginal, de $48.8\,\%$ a
+$49.5\,\%$, con una anchura a media altura residual prácticamente idéntica ($0.084$ frente a
+$0.085$~mm) y una recuperación del sesgo equivalente ($82.6\,\%$ frente a $82.7\,\%$). La ventaja
+sobre la regresión lineal, que sustenta la necesidad del aprendizaje profundo, se conserva en
+$11.3$ puntos frente a los $11.5$ del modelo de referencia; la diferencia queda holgadamente dentro
+de la variabilidad entre entrenamientos. Ninguno de los dos observables se ve por tanto perjudicado
+por la ampliación de la cobertura.
+
 \paragraph{Contrapartida: pérdida de robustez ante fallos múltiples.} La evaluación multi-dead
 revela, sin embargo, un efecto de signo contrario que obliga a matizar la valoración. Ambos modelos
 se entrenaron exclusivamente con un canal enmascarado, de modo que un fallo de dos o más sensores
@@ -2279,6 +2331,15 @@ Se identifican las siguientes líneas de continuación:
     de la distribución de carga y con formulación de dos colas, que permitiría abordar los modos de
     fallo actualmente no cubiertos.
 
+    \item \textbf{Combinación de cobertura completa y entrenamiento multi-canal.} Los resultados de
+    la Sección~\ref{subsec:res-cobertura} muestran que ampliar la cobertura de módulos mejora la
+    homogeneidad entre sensores y la conservación del espectro, pero degrada la extrapolación a
+    fallos múltiples, mientras que el entrenamiento en régimen multi-canal
+    (Sección~\ref{subsec:res-multidead}) proporciona precisamente esa robustez sin coste apreciable
+    en el caso de fallo único. Al actuar sobre aspectos independientes del procedimiento, ambas
+    intervenciones son en principio acumulables, y su combinación constituye la vía más directa
+    hacia un modelo de producción que reúna las dos propiedades.
+
     \item \textbf{Anotación manual completa de los módulos averiados} con la herramienta descrita en
     la Sección~\ref{subsec:exp-bad}, que proporcionaría la verdad de referencia necesaria para medir
     el acuerdo entre el criterio experto y el estadístico automático sobre datos reales, y no
@@ -2308,9 +2369,6 @@ Se identifican las siguientes líneas de continuación:
 %          y la duración de las adquisiciones.
 % TODO(3): Especificar el modelo de ASIC empleado y el valor del umbral de
 %          discriminación aplicado.
-% TODO(4): Completar las celdas de la Tabla \ref{tab:res-arquitecturas} marcadas
-%          con "---", reejecutando eval_total.py sobre DeepMLP, ResidualMLP y
-%          HexGNN m/l con la campaña homogénea de 600 000 eventos por fichero.
 % TODO(5): Incluir las referencias bibliográficas correspondientes a: GraphSAGE
 %          (Hamilton et al., 2017), PNA (Corso et al., 2020), Graphormer (Ying
 %          et al., 2021), Graph U-Net (Gao y Ji, 2019), convolución hexagonal
