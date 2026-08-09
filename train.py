@@ -99,6 +99,14 @@ VAL_MAX_EVENTS = 400_000
 # None = orden alfabético (comportamiento histórico). Ver la nota de cobertura en main():
 # con N_EPOCHS < nº de ficheros el round-robin no da la vuelta y solo se ven los primeros.
 ROT_SEED      = None
+# Nº de módulos que se MEZCLAN en cada época (flag --mix). Con 1 (histórico) cada
+# época carga un único detector, de modo que todos los lotes de esa época proceden
+# del mismo módulo y el gradiente de cada paso está sesgado hacia él. Y los módulos
+# difieren MUCHO entre sí: eval_modulos.py mide una desviación de 7.9 puntos de
+# recuperación entre detectores, frente a 0.09 entre entrenamientos. Con N>1 se
+# cargan N módulos y se barajan sus eventos, repartiendo MAX_EVENTS entre ellos:
+# mismo coste por época, pero cada lote ve varios detectores.
+MIX_MODULES   = 1
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
 # Función de pérdida: 'huber' | 'mae' | 'mse', y variantes PHYSICS-INFORMED con
@@ -275,10 +283,13 @@ def main():
         rng_rot = np.random.default_rng(ROT_SEED)
         train_files = [train_files[i] for i in rng_rot.permutation(len(train_files))]
         print(f"  rotación BARAJADA con semilla {ROT_SEED}")
-    n_vistos = min(N_EPOCHS, len(train_files))
+    n_vistos = min(N_EPOCHS * MIX_MODULES, len(train_files))
     print(f"  COBERTURA: {n_vistos}/{len(train_files)} módulos distintos "
           f"({n_vistos/len(train_files)*100:.0f}%)  |  {MAX_EVENTS:,} eventos/época  "
           f"→ {N_EPOCHS * MAX_EVENTS:,} muestras totales")
+    if MIX_MODULES > 1:
+        print(f"  MEZCLA: {MIX_MODULES} módulos por época "
+              f"({MAX_EVENTS // MIX_MODULES:,} eventos de cada uno) → cada lote ve varios detectores")
 
     # ── Validación: conjunto FIJO (se carga una vez) ─────────
     print("Cargando archivos de validación...")
@@ -320,7 +331,7 @@ def main():
                     'split_seed': SPLIT_SEED, 'device': str(device),
                     # Cobertura del entrenamiento (auditoría 05/08): cuántos módulos
                     # distintos ve realmente el modelo y con qué orden de rotación.
-                    'rot_seed': ROT_SEED,
+                    'rot_seed': ROT_SEED, 'mix_modules': MIX_MODULES,
                     'n_train_files': len(train_files),
                     'n_modules_seen': min(N_EPOCHS, len(train_files)),
                 },
@@ -366,9 +377,20 @@ def main():
     for epoch in range(1, N_EPOCHS + 1):
         t0 = time.time()
 
-        # Archivo de esta época (round-robin sobre los de train)
-        f_train = train_files[(epoch - 1) % len(train_files)]
-        X_train = load_dat_to_dense(f_train, max_events=MAX_EVENTS)
+        # ── Ficheros de esta época ───────────────────────────
+        # MIX_MODULES = 1 (histórico): un único módulo por época. Cada actualización
+        # de pesos ve entonces UN SOLO detector, y los detectores difieren mucho
+        # entre sí (sd de 7.9 puntos de recuperación, medida con eval_modulos.py),
+        # así que el gradiente de cada paso está sesgado hacia el módulo de turno.
+        # MIX_MODULES = N: se cargan N módulos y se BARAJAN sus eventos, de modo que
+        # cada lote contenga varios detectores. Mismo coste (el presupuesto de
+        # eventos por época se reparte entre los N) y gradientes representativos.
+        idx0 = (epoch - 1) * MIX_MODULES
+        lote = [train_files[(idx0 + j) % len(train_files)] for j in range(MIX_MODULES)]
+        ev_por_fichero = max(1, MAX_EVENTS // MIX_MODULES)
+        X_train = np.concatenate(
+            [load_dat_to_dense(f, max_events=ev_por_fichero) for f in lote], axis=0)
+        f_train = lote[0] if MIX_MODULES == 1 else f'{len(lote)} módulos'
         # seed = epoch → el masking aleatorio cambia en cada época
         train_ds = SiPMImputationDataset(X_train, seed=epoch,
                                          n_dead=N_DEAD, dead_mode=DEAD_MODE,
@@ -452,6 +474,7 @@ def main():
                 'channel_norm': CHANNEL_NORM,
                 # Cobertura: permite saber a posteriori con cuántos módulos se entrenó
                 'rot_seed':       ROT_SEED,
+                'mix_modules':    MIX_MODULES,
                 'n_epochs':       N_EPOCHS,
                 'max_events':     MAX_EVENTS,
                 'n_modules_seen': min(N_EPOCHS, len(train_files)),
@@ -463,7 +486,7 @@ def main():
         print(f"Epoch {epoch:3d}/{N_EPOCHS} | "
               f"train={train_loss:.4f} val={val_loss:.4f} | "
               f"MAE(mod)={mae_mod:.4f} MAE(non)={mae_non:.4f} dR={val_dr:.4f} bias={val_bias:+.4f} | "
-              f"{f_train.name} | {time.time()-t0:.1f}s{flag}")
+              f"{f_train.name if MIX_MODULES == 1 else f_train} | {time.time()-t0:.1f}s{flag}")
 
         if epochs_no_improve >= PATIENCE:
             print(f"\nEarly stopping en epoch {epoch} (sin mejora en {PATIENCE} épocas)")
@@ -597,6 +620,13 @@ if __name__ == '__main__':
         assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --maxev N"
         MAX_EVENTS = int(argv[i + 1]); del argv[i:i + 2]
 
+    # --mix N: mezcla N módulos por época (reparte MAX_EVENTS entre ellos).
+    if '--mix' in argv:
+        i = argv.index('--mix')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --mix N"
+        MIX_MODULES = int(argv[i + 1]); del argv[i:i + 2]
+        assert MIX_MODULES >= 1, "--mix debe ser >= 1"
+
     # --rotseed [S]: baraja el orden de rotación de los ficheros de train.
     if '--rotseed' in argv:
         i = argv.index('--rotseed')
@@ -631,6 +661,8 @@ if __name__ == '__main__':
         RUN_SUFFIX = f'{RUN_SUFFIX}_aniso'                # conv hexagonal direccional (Zhao)
     if NORM_MODE != 'max':
         RUN_SUFFIX = f'{RUN_SUFFIX}_norm{NORM_MODE}'      # p.ej. _normsum → carpeta propia
+    if MIX_MODULES > 1:
+        RUN_SUFFIX = f'{RUN_SUFFIX}_mix{MIX_MODULES}'   # mezcla de modulos por epoca
     if CHANNEL_NORM:
         RUN_SUFFIX = f'{RUN_SUFFIX}_chnorm'               # normalizacion por canal
     RUN_SUFFIX = f'{RUN_SUFFIX}{dead_sfx}'                # p.ej. _dead1-4 / _dead3_scatter
