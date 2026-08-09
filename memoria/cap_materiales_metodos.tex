@@ -2126,17 +2126,42 @@ sin coste alguno en el caso de un único canal tiene aplicabilidad práctica dir
 
 \subsection{Limitaciones}
 
-\paragraph{Estadística de módulos reducida.} La partición reserva únicamente cinco módulos para
-test. Aunque la estadística de eventos es holgada, las conclusiones referidas a canales individuales
-pueden reflejar particularidades de esos módulos concretos. El caso del canal $\mathrm{Ich}\,31$
-ilustra el problema: identificado inicialmente como canal sistemáticamente anómalo, el análisis
-posterior reveló que su comportamiento en los módulos de entrenamiento es normal y que la anomalía
-se concentra en dos módulos que resultaron asignados a la partición de test. La interpretación
-correcta no es la de un canal defectuoso, sino la de un ejemplo de la variabilidad de ganancia entre
-módulos, y por tanto de la necesidad de calibración.
+\paragraph{Estadística de módulos reducida.} Conviene distinguir esta limitación de la cobertura del
+entrenamiento tratada más abajo, con la que resulta fácil confundirla: aquella se refiere a
+\emph{cuántos detectores ve el modelo} y afecta a lo que aprende; ésta se refiere a \emph{cuántos
+detectores se emplean para medirlo} y afecta a la precisión de la métrica. Son independientes, y el
+experimento de cobertura no resuelve la segunda.
 
-\paragraph{Ausencia de validación cruzada.} No se ha realizado validación cruzada por coste
-computacional, lo que impide estimar la sensibilidad de los resultados a la partición concreta.
+La partición reserva únicamente cinco módulos para test. Aunque la estadística de eventos es holgada
+---del orden de tres millones---, la de \emph{detectores} es pobre, de modo que las conclusiones
+referidas a canales individuales pueden reflejar particularidades de esos cinco módulos concretos.
+El caso del canal $\mathrm{Ich}\,31$ ilustra el problema: identificado inicialmente como canal
+sistemáticamente anómalo, el análisis posterior reveló que su comportamiento en los módulos de
+entrenamiento es normal y que la anomalía se concentra en dos módulos asignados a test; el
+experimento de cobertura confirmó después que dichos módulos quedaban fuera del régimen estadístico
+representado durante el entrenamiento.
+
+La consecuencia metodológica es que las métricas agregadas carecen de una barra de error asociada al
+\emph{efecto de módulo}: se dispone de la variabilidad entre entrenamientos
+(Sección~\ref{subsec:res-replicas}), pero no de la variabilidad entre detectores. El procedimiento
+descrito en el párrafo anterior ---evaluar sobre los 119 módulos no observados--- permite estimarla
+sin reentrenar y se identifica como la comprobación pendiente de mayor valor.
+
+\paragraph{Ausencia de validación cruzada.} No se ha realizado validación cruzada por módulos. La
+razón no es el coste ---repetir el entrenamiento cinco veces es perfectamente asumible--- sino que
+el número de hiperparámetros a ajustar es reducido y la selección del punto de control ya descansa
+en un conjunto de validación independiente. Conviene, no obstante, precisar qué quedaría por
+resolver: la validación cruzada no se necesitaría aquí para \emph{ajustar} nada, sino para
+\textbf{acotar la sensibilidad de las métricas a qué cinco módulos concretos quedaron reservados
+para test}, que es una cuestión distinta y sí pertinente.
+
+Existe, además, una alternativa más económica y estadísticamente más potente que la validación
+cruzada para esa pregunta concreta, derivada de la propia mecánica de rotación de ficheros. Puesto
+que un modelo de 40 épocas solo llega a ver 40 de los 149 módulos de entrenamiento, los 109
+restantes ---junto a los 5 de validación y los 5 de test--- constituyen \textbf{119 módulos que el
+modelo no ha observado nunca}. Evaluar sobre ellos proporciona la dispersión entre detectores con
+una estadística veinticuatro veces mayor que la del conjunto de test, y sin reentrenar. Es el
+procedimiento recomendado para cerrar la limitación descrita en el párrafo siguiente.
 
 \paragraph{Cobertura parcial del conjunto de entrenamiento.} El presupuesto de 40 épocas, combinado
 con una rotación cíclica sobre la lista ordenada de ficheros, hace que el modelo utilice 40 de los
