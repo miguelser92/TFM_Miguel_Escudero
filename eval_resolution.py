@@ -23,6 +23,7 @@ Autor: Miguel Escudero (TFM)
 
 import sys
 import json
+import time
 import datetime
 import argparse
 import numpy as np
@@ -80,6 +81,7 @@ def main():
 
     # Acumular, por canal, el error de posición (deg e imp)
     fwhm_deg, fwhm_imp, bias_deg, bias_imp = [], [], [], []
+    t0 = time.time()
     err_ref = {'deg': None, 'imp': None}          # para la figura (canal Ich30)
     for c in range(N_ACTIVE):
         dxd, dyd, dxi, dyi = [], [], [], []
@@ -101,8 +103,13 @@ def main():
         bias_deg.append(bd); fwhm_deg.append(fd); bias_imp.append(bi); fwhm_imp.append(fi)
         if IDX_TO_ICH[c] == 30:
             err_ref = {'deg': (dxd, dyd), 'imp': (dxi, dyi)}
-        if (c + 1) % 15 == 0:
-            print(f"  {c+1}/{N_ACTIVE} canales")
+        # flush=True obligatorio: si la salida va por una tuberia (p.ej. Tee-Object en
+        # PowerShell), Python pasa a buffering de bloque y sin vaciar no se ve NADA
+        # hasta el final. El script parece colgado cuando en realidad esta trabajando.
+        el = time.time() - t0
+        eta = el / (c + 1) * (N_ACTIVE - c - 1)
+        print(f"  {c+1:2d}/{N_ACTIVE} canales  Ich={IDX_TO_ICH[c]:2d}  "
+              f"FWHM {fd:.3f}->{fi:.3f} mm  (ETA {eta/60:.0f} min)", flush=True)
 
     fd, fi = np.nanmean(fwhm_deg), np.nanmean(fwhm_imp)
     bd, bi = np.nanmean(bias_deg), np.nanmean(bias_imp)

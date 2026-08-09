@@ -22,6 +22,7 @@ Autor: Miguel Escudero (TFM)
 import sys
 import json
 import datetime
+import time
 import argparse
 import numpy as np
 import torch
@@ -95,6 +96,7 @@ def main():
     orig_xy = [compute_xy(X, x_sipm, y_sipm) for X in X_list]
 
     # Acumular recuperación por canal para cada método
+    t0 = time.time()
     rec = {'network': [], 'neighbor_mean': [], 'linear_reg': []}
     mae = {'network': [], 'neighbor_mean': [], 'linear_reg': []}
     for c in range(N_ACTIVE):
@@ -130,8 +132,14 @@ def main():
         mae['network'].append(np.concatenate(enet).mean())
         mae['neighbor_mean'].append(np.concatenate(enb).mean())
         mae['linear_reg'].append(np.concatenate(elin).mean())
-        if (c + 1) % 15 == 0:
-            print(f"  {c+1}/{N_ACTIVE} canales")
+        # flush=True obligatorio: si la salida va por una tuberia (Tee-Object en
+        # PowerShell), Python pasa a buffering de bloque y sin vaciar no se ve NADA
+        # hasta el final, con lo que el script parece colgado sin estarlo.
+        el = time.time() - t0
+        eta = el / (c + 1) * (N_ACTIVE - c - 1)
+        print(f"  {c+1:2d}/{N_ACTIVE} canales  Ich={IDX_TO_ICH[c]:2d}  "
+              f"red={rec['network'][-1]:5.1f}%  lineal={rec['linear_reg'][-1]:5.1f}%  "
+              f"(ETA {eta/60:.0f} min)", flush=True)
 
     print(f"\n=== ¿HACE FALTA EL DEEP LEARNING?  (macro sobre {len(rec['network'])} canales) ===")
     print(f"{'método':>16} {'recov_p90 %':>12} {'MAE (ADC)':>11}")

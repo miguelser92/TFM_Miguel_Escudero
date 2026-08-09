@@ -1527,13 +1527,13 @@ ensembles, de modo que su ventaja no está sobreestimada por este motivo.}
 \textbf{MAE} (ADC) & $\varepsilon_{\text{rel}}$ (\%) \\
 \midrule
 \multicolumn{6}{l}{\emph{Sin prior geométrico}} \\
-\quad DeepMLP & \num{500541} & --- & 50.51 & 0.737 & --- \\
-\quad ResidualMLP & \num{345981} & --- & 48.30 & 0.741 & --- \\
+\quad DeepMLP & \num{500541} & 45.90 & 51.39 & 0.7219 & 34.9 \\
+\quad ResidualMLP & \num{345981} & 44.81 & 48.92 & 0.7299 & 35.3 \\
 \midrule
 \multicolumn{6}{l}{\emph{Red de grafos geométrica}} \\
 \quad HexGNN \texttt{s} (referencia) & \num{38305} & 52.66 & 58.02 & 0.6195 & 29.9 \\
-\quad HexGNN \texttt{m} & \num{225217} & --- & 57.92 & 0.627 & --- \\
-\quad HexGNN \texttt{l} & \num{398593} & --- & 57.15 & 0.650 & --- \\
+\quad HexGNN \texttt{m} & \num{225217} & 52.64 & 58.27 & 0.6185 & 29.9 \\
+\quad HexGNN \texttt{l} & \num{398593} & 51.96 & 57.47 & 0.6385 & 30.8 \\
 \midrule
 \multicolumn{6}{l}{\emph{Variantes arquitectónicas}} \\
 \quad PNA & \num{165761} & 52.48 & 58.45 & 0.6309 & 30.4 \\
@@ -1549,10 +1549,6 @@ ensembles, de modo que su ventaja no está sobreestimada por este motivo.}
 \end{tabular}
 \end{table}
 
-% TODO: Completar las celdas marcadas con "---" correspondientes a la recuperación en media y
-% al error relativo de DeepMLP, ResidualMLP y HexGNN m/l. Estos valores requieren reejecutar
-% eval_total.py sobre dichos modelos con la campaña homogénea de 600 000 eventos, dado que sus
-% evaluaciones disponibles se realizaron con 200 000 eventos por fichero.
 
 Los resultados admiten tres lecturas. En primer lugar, la arquitectura de grafo supera claramente a
 los baselines neuronales sin prior geométrico. En segundo lugar, y de forma contraintuitiva,
@@ -1948,10 +1944,58 @@ intrínsecamente problemático, sino de una configuración de detector que el mo
 observado. Deja de constituir una anomalía del sensor para pasar a ser una manifestación medible de
 la cobertura del conjunto de entrenamiento.
 
+\paragraph{Conservación del espectro.} El efecto sobre la métrica energética apunta en la misma
+dirección. La recuperación espectral media asciende de $82.9\,\%$ a $86.3\,\%$, y ---de nuevo lo más
+relevante--- el peor caso mejora sustancialmente: la combinación más desfavorable, el canal central
+evaluado sobre eventos de borde, pasa de $52.8\,\%$ a $65.8\,\%$. Nueve de las quince combinaciones
+de canal y zona mejoran.
+
+\paragraph{Contrapartida: pérdida de robustez ante fallos múltiples.} La evaluación multi-dead
+revela, sin embargo, un efecto de signo contrario que obliga a matizar la valoración. Ambos modelos
+se entrenaron exclusivamente con un canal enmascarado, de modo que un fallo de dos o más sensores
+constituye para ellos una situación no observada durante el entrenamiento. Con un único canal
+averiado, el modelo de cobertura completa es superior, y de forma marcada en el peor caso
+($45.9\,\%$ frente a $34.7\,\%$). Pero al aumentar el tamaño del fallo su rendimiento
+\textbf{se desploma}: en agrupaciones contiguas de dos sensores la recuperación media cae a valores
+negativos ---esto es, la imputación empeora la posición respecto a no imputar--- mientras que el
+modelo de referencia se degrada de forma suave y conserva un $49.3\,\%$.
+
+\begin{table}[htbp]
+\centering
+\caption{Recuperación media (\%) frente al tamaño del fallo, para dos modelos entrenados ambos con
+un solo canal enmascarado. Valores negativos indican que la imputación desplaza la posición más de
+lo que lo hace el propio fallo.}
+\label{tab:res-cobertura-multidead}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Modelo} & $k=1$ & $k=2$ & $k=3$ & $k=4$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Agrupación contigua}} \\
+\quad 40 módulos (referencia) & 51.39 & \textbf{49.28} & \textbf{44.21} & \textbf{37.59} \\
+\quad 149 módulos & \textbf{51.64} & $-27.35$ & $-123.65$ & $-161.83$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Fallo disperso}} \\
+\quad 40 módulos (referencia) & 51.39 & \textbf{50.71} & \textbf{43.19} & \textbf{43.37} \\
+\quad 149 módulos & \textbf{51.64} & 45.13 & 13.62 & $-3.96$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La interpretación más plausible es que el entrenamiento prolongado sobre un régimen de fallo único
+---149 épocas frente a 40, con el punto de control seleccionado en la época 133--- produce una
+función más ajustada a esa condición concreta y, por ello, más frágil fuera de la distribución de
+entrenamiento. La cobertura completa mejora el caso para el que el modelo fue entrenado a costa de
+su capacidad de extrapolación.
+
 \paragraph{Implicación práctica.} Ampliar la cobertura no mejora el rendimiento promedio, pero
-\textbf{homogeneiza la respuesta del detector sin coste computacional adicional}. En un dispositivo
-real, donde la garantía relevante es que ningún sensor se degrade de forma catastrófica, elevar el
-peor caso nueve puntos resulta preferible a una mejora marginal de la media.
+\textbf{homogeneiza la respuesta del detector sin coste computacional adicional}: eleva el peor
+sensor nueve puntos y mejora la conservación del espectro. En un dispositivo real, donde la garantía
+relevante es que ningún sensor se degrade de forma catastrófica, ese comportamiento resulta
+preferible a una mejora marginal de la media. Ahora bien, la pérdida de robustez ante fallos
+múltiples impide recomendar su adopción sin más: un modelo de producción con cobertura completa
+debería entrenarse necesariamente en régimen multi-dead
+(Sección~\ref{subsec:exp-multidead}), combinando ambas mejoras en lugar de intercambiarlas.
 
 \subsection{Detección de canales defectuosos}
 \label{subsec:res-bad}
