@@ -71,7 +71,7 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 # la métrica "real". Se puede limitar por CLI con --events N (p.ej. --events 200000
 # para reproducir las campañas antiguas). OJO: con todos los eventos cada modelo
 # tarda ~4-5x más que con 200k.
-TEST_MAX_EVENTS = 600_000
+TEST_MAX_EVENTS = 750_000
 
 USE_WANDB     = True
 WANDB_PROJECT = 'TFM-SiPM-imputation'
@@ -129,7 +129,7 @@ def discover_runs():
             continue
         if '-06-23' in d.name or re.search(r'_\d\d_\d\d$', d.name):
             continue                      # runs antiguas conservadas como referencia
-        if (d / 'best_model.pth').exists() or (d / 'ensemble.json').exists():
+        if (d / 'best_model.pth').exists():
             out.append(d.name)
     return out
 
@@ -182,10 +182,9 @@ def eval_total_model(run_name, X_list, orig_xy, deg_stats, x_sipm, y_sipm,
                      channels, device, hist_channels=frozenset(), rng_hist=None):
     """Imputa cada canal con el modelo del run y devuelve la tabla por canal
     (+ histogramas 2D imputados de los canales de las líneas)."""
-    from imputation_eval import load_ckpt_meta
     ckpt_path = Path(RUNS_BASE) / run_name / 'best_model.pth'
     model = load_model(ckpt_path, device)
-    ckpt = load_ckpt_meta(ckpt_path)
+    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
 
     per_channel, Hi_map = [], {}
     t0 = time.time()
@@ -551,24 +550,9 @@ def main():
                                             hist_channels=line_channels, rng_hist=rng_hist)
 
     # ── Bucle de modelos ──
-    fallidos = []
     for run_name in runs:
         print(f"\n{'='*64}\nEVAL TOTAL: {run_name}\n{'='*64}")
         out_dir = Path(RUNS_BASE) / run_name / out_name
-
-        # El run debe existir y tener pesos. En una tanda desatendida es normal que
-        # un entrenamiento previo no haya terminado; ese caso se salta con un aviso
-        # legible en vez de abortar la tanda entera con una traza de FileNotFound.
-        run_dir = Path(RUNS_BASE) / run_name
-        if not run_dir.exists():
-            print(f"  NO EXISTE la carpeta {run_dir} → salto este run.")
-            fallidos.append((run_name, 'carpeta inexistente')); continue
-        if not (run_dir / 'best_model.pth').exists() and not (run_dir / 'ensemble.json').exists():
-            hay = sorted(p.name for p in run_dir.iterdir())
-            print(f"  SIN CHECKPOINT en {run_dir} → salto este run.\n"
-                  f"  (el entrenamiento no llegó a guardar best_model.pth; contiene: {hay})")
-            fallidos.append((run_name, 'sin best_model.pth')); continue
-
         # PROTECCIÓN: nunca sobrescribir una campaña ya evaluada. Para relanzar,
         # usa otro nombre: python eval_total.py all --out TOTAL_full
         if (out_dir / 'eval_total_metrics.json').exists():
@@ -577,15 +561,9 @@ def main():
             continue
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            per_channel, macro, ckpt, Hi_map = eval_total_model(
-                run_name, X_list, orig_xy, deg_stats, x_sipm, y_sipm, channels, device,
-                hist_channels=line_channels, rng_hist=rng_hist)
-        except Exception as e:
-            # Un run que falle no debe tumbar los demás de la tanda.
-            print(f"  ERROR evaluando {run_name}: {type(e).__name__}: {e}")
-            fallidos.append((run_name, f'{type(e).__name__}: {e}'))
-            continue
+        per_channel, macro, ckpt, Hi_map = eval_total_model(
+            run_name, X_list, orig_xy, deg_stats, x_sipm, y_sipm, channels, device,
+            hist_channels=line_channels, rng_hist=rng_hist)
 
         print(f"\n  MACRO: recovery GLOBAL(mean)={macro['recovery_mean_macro_mean']:.1f}%  "
               f"p90={macro['recovery_p90_macro_mean']:.1f}%  "
@@ -628,13 +606,6 @@ def main():
 
         if USE_WANDB and not no_wandb:
             log_to_wandb(run_name, macro, pngs, metrics, line_metrics)
-
-    if fallidos:
-        print(f"\n{'!'*64}")
-        print(f"{len(fallidos)} run(s) NO evaluados:")
-        for r, motivo in fallidos:
-            print(f"  - {r}: {motivo}")
-        print('!' * 64)
 
     print("\n✓ EVAL TOTAL terminado.")
 
