@@ -107,6 +107,10 @@ ROT_SEED      = None
 # cargan N módulos y se barajan sus eventos, repartiendo MAX_EVENTS entre ellos:
 # mismo coste por época, pero cada lote ve varios detectores.
 MIX_MODULES   = 1
+# Semilla global de PyTorch (flag --seed). None = no se fija, que es lo que se hizo
+# historicamente para que las replicas difirieran. Fijarla NO impide tener replicas:
+# basta con dar una semilla distinta a cada una, y ademas quedan reproducibles.
+TORCH_SEED    = None
 HUBER_DELTA   = 0.1         # robusto a outliers; datos ~[0,1] (algún target >1)
 
 # Función de pérdida: 'huber' | 'mae' | 'mse', y variantes PHYSICS-INFORMED con
@@ -249,6 +253,14 @@ def evaluate(model, loader, loss_fn, device, xs_t, ys_t):
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Reproducibilidad: si se da semilla, el run queda repetible bit a bit.
+    if TORCH_SEED is not None:
+        torch.manual_seed(TORCH_SEED)
+        np.random.seed(TORCH_SEED)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(TORCH_SEED)
+        print(f'Semilla global fijada: {TORCH_SEED}')
 
     # ── Resolver tamaño → kwargs del modelo, etiqueta de run y carpeta de salida ──
     # MODEL_SIZE elige un preset (solo hexcnn); MODEL_KWARGS lo sobrescribe por encima.
@@ -472,6 +484,14 @@ def main():
                 'val_bias':     val_bias,
                 'norm_mode':    NORM_MODE,
                 'channel_norm': CHANNEL_NORM,
+                # Huella COMPLETA del preprocesado. Es el modo de fallo mas peligroso
+                # del proyecto (ha ocurrido dos veces): un modelo entrenado con un
+                # preprocesado y evaluado con otro rinde fatal sin dar ningun error.
+                # Con esto viaja dentro del checkpoint y load_model puede verificarlo.
+                'preproc':      {'norm_mode': NORM_MODE, 'channel_norm': CHANNEL_NORM,
+                                 'clip_negativos': True, 'norm_por_evento': True,
+                                 'orden': 'apagar -> normalizar'},
+                'torch_seed':   TORCH_SEED,
                 # Cobertura: permite saber a posteriori con cuántos módulos se entrenó
                 'rot_seed':       ROT_SEED,
                 'mix_modules':    MIX_MODULES,
@@ -491,6 +511,32 @@ def main():
         if epochs_no_improve >= PATIENCE:
             print(f"\nEarly stopping en epoch {epoch} (sin mejora en {PATIENCE} épocas)")
             break
+
+    # ── Ficha del run: que preprocesado y que protocolo se uso ───
+    # Fichero legible y separado del .pth, para poder auditar de un vistazo con
+    # que se entreno cada modelo sin tener que abrir el checkpoint en torch.
+    ficha = {
+        'run': out_dir.name, 'arch': MODEL_NAME, 'model_kwargs': model_kwargs,
+        'n_params': n_params, 'loss': LOSS,
+        'PREPROCESADO': {'norm_mode': NORM_MODE, 'channel_norm': CHANNEL_NORM,
+                         'clip_negativos_a_cero': True, 'normalizacion_por_evento': True,
+                         'orden': 'se apaga el canal y DESPUES se normaliza'},
+        'REGIMEN_FALLO': {'n_dead': str(N_DEAD), 'dead_mode': DEAD_MODE},
+        'PROTOCOLO': {'n_epochs': N_EPOCHS, 'max_events_por_epoca': MAX_EVENTS,
+                      'val_max_events': VAL_MAX_EVENTS, 'batch_size': BATCH_SIZE,
+                      'mix_modules': MIX_MODULES, 'rot_seed': ROT_SEED,
+                      'torch_seed': TORCH_SEED,
+                      'modulos_vistos': min(N_EPOCHS * MIX_MODULES, len(train_files)),
+                      'modulos_disponibles': len(train_files)},
+        'SPLIT': {'n_val': N_VAL_FILES, 'n_test': N_TEST_FILES, 'seed': SPLIT_SEED,
+                  'val': [f.name for f in val_files], 'test': [f.name for f in test_files]},
+        'SELECCION': 'mejor epoca por val_mae_mod',
+        'mejor_epoca': int(np.argmin(history['val_mae_mod']) + 1),
+        'best_val_mae_mod': float(min(history['val_mae_mod'])),
+    }
+    (out_dir / 'PREPROC.json').write_text(json.dumps(ficha, indent=2, ensure_ascii=False),
+                                          encoding='utf-8')
+    print(f"Ficha del run guardada en {out_dir / 'PREPROC.json'}")
 
     # ── Guardar historial + curvas ───────────────────────────
     with open(out_dir / 'history.json', 'w') as f:
@@ -634,6 +680,12 @@ if __name__ == '__main__':
             ROT_SEED = int(argv[i + 1]); del argv[i:i + 2]
         else:
             ROT_SEED = 0; del argv[i]
+
+    # --seed N: fija la semilla global de PyTorch (runs reproducibles).
+    if '--seed' in argv:
+        i = argv.index('--seed')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --seed N"
+        TORCH_SEED = int(argv[i + 1]); del argv[i:i + 2]
 
     # --tag STR: etiqueta libre al final del nombre de carpeta (para réplicas sin pisar).
     tag = None

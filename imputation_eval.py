@@ -183,6 +183,19 @@ def load_model(ckpt_path, device):
     if model._chan_norm:
         from hex_geometry import get_channel_scale
         model._chan_scale = get_channel_scale()
+    # ── Aviso de preprocesado (modo de fallo mas peligroso del proyecto) ──
+    # Si el modelo se entreno con un preprocesado no estandar, se anuncia en voz
+    # alta al cargarlo. Asi, si una ruta de evaluacion no lo respeta, el numero
+    # raro que salga viene acompanado de la pista para diagnosticarlo.
+    _pp = []
+    if model._norm_mode != 'max':
+        _pp.append(f'norm_mode={model._norm_mode}')
+    if model._chan_norm:
+        _pp.append('channel_norm=True')
+    if _pp:
+        print(f"  [PREPROCESADO NO ESTANDAR] {', '.join(_pp)} "
+              f"-> la evaluacion DEBE replicarlo (ver PREPROC.json del run)")
+
     vloss = ckpt.get('val_loss')
     extra = f"val_loss={vloss:.4f}, " if vloss is not None else ''
     print(f"Modelo '{ckpt['arch']}' cargado (epoch {ckpt.get('epoch')}, "
