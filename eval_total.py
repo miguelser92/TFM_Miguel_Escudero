@@ -524,7 +524,25 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
-    _, _, test_files = get_file_split(GOOD_DIR)
+    # La particion debe ser la MISMA con la que se entreno cada run. Desde que
+    # existe --splitseed (validacion cruzada) no se puede dar por hecho la de por
+    # defecto: evaluar con otra particion significaria medir sobre modulos que el
+    # modelo si vio. Se lee del checkpoint del primer run y se exige que todos
+    # los runs de la tanda compartan la misma.
+    def _split_seed_de(run):
+        from imputation_eval import load_ckpt_meta
+        try:
+            return load_ckpt_meta(Path(RUNS_BASE) / run / 'best_model.pth').get('split_seed', 42)
+        except Exception:
+            return 42
+    _seeds = {r: _split_seed_de(r) for r in runs}
+    if len(set(_seeds.values())) > 1:
+        raise SystemExit(f"Los runs no comparten particion: {_seeds}. Evalualos por separado.")
+    split_seed = next(iter(_seeds.values()))
+    _, _, test_files = get_file_split(GOOD_DIR, seed=split_seed)
+    if split_seed != 42:
+        print(f"  PARTICION NO ESTANDAR (split_seed={split_seed}) -> test: "
+              f"{[f.name for f in test_files]}")
 
     # ── Líneas del análisis por zonas (apotema + lado) ──
     lines = build_lines(x_sipm, y_sipm)
@@ -619,7 +637,7 @@ def main():
             'generated': datetime.datetime.now().isoformat(timespec='seconds'),
             'test_files': [f.name for f in test_files],
             'max_events_per_file': max_ev if max_ev else 'all',
-            'campaign': out_name,
+            'campaign': out_name, 'split_seed': split_seed,
             'macro': macro,
             'lines': line_metrics,
             'per_channel': per_channel,

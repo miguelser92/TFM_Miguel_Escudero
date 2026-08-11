@@ -492,6 +492,7 @@ def main():
                                  'clip_negativos': True, 'norm_por_evento': True,
                                  'orden': 'apagar -> normalizar'},
                 'torch_seed':   TORCH_SEED,
+                'split_seed':   SPLIT_SEED,
                 # Cobertura: permite saber a posteriori con cuántos módulos se entrenó
                 'rot_seed':       ROT_SEED,
                 'mix_modules':    MIX_MODULES,
@@ -680,6 +681,15 @@ if __name__ == '__main__':
             ROT_SEED = int(argv[i + 1]); del argv[i:i + 2]
         else:
             ROT_SEED = 0; del argv[i]
+
+    # --splitseed N: cambia la PARTICION train/val/test. Sirve para validacion
+    # cruzada por modulos: cada valor da 5 modulos de test distintos. El valor
+    # queda guardado en el checkpoint para que el evaluador use la MISMA
+    # particion; si no, evaluaria sobre modulos que este modelo si vio.
+    if '--splitseed' in argv:
+        i = argv.index('--splitseed')
+        assert i + 1 < len(argv) and argv[i + 1].isdigit(), "uso: --splitseed N"
+        SPLIT_SEED = int(argv[i + 1]); del argv[i:i + 2]
 
     # --seed N: fija la semilla global de PyTorch (runs reproducibles).
     if '--seed' in argv:
