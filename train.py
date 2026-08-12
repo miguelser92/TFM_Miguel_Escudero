@@ -649,8 +649,8 @@ if __name__ == '__main__':
             assert j + 1 < len(argv) and argv[j + 1] in ('cluster', 'scatter'), \
                 "uso: --deadmode cluster|scatter"
             DEAD_MODE = argv[j + 1]; del argv[j:j + 2]
-            if DEAD_MODE == 'scatter':
-                dead_sfx += '_scatter'      # 'cluster' es el modo por defecto → sin sufijo
+            if DEAD_MODE != 'cluster':
+                dead_sfx += f'_{DEAD_MODE}'      # 'cluster' es el modo por defecto → sin sufijo
 
     # --epochs N: presupuesto de épocas (por defecto 40). Con la rotación round-robin,
     # el nº de épocas ES la cobertura: 149 épocas = los 149 módulos de train.

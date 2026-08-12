@@ -233,7 +233,7 @@ class SiPMImputationDataset(Dataset):
             self.chan_scale = get_channel_scale()
         else:
             self.chan_scale = None
-        if nbr is None and dead_mode == 'cluster':
+        if nbr is None and dead_mode in ('cluster', 'near'):
             # Import PEREZOSO: hex_geometry importa de dataset, así que a nivel de módulo
             # habría ciclo. Aquí dataset ya está cargado del todo → seguro.
             from hex_geometry import get_neighbor_matrix
@@ -265,6 +265,33 @@ class SiPMImputationDataset(Dataset):
                 break                      # clúster aislado (no ocurre en esta malla)
             cluster.append(int(self.rng.choice(sorted(frontera))))
         return np.array(cluster, dtype=np.int64)
+
+    def _near(self, seed_ch: int, k: int, saltos: int = 2) -> np.ndarray:
+        """
+        Fallo DISPERSO PERO CERCANO: k sensores dentro de un radio de 'saltos'
+        del semilla, sin exigir que sean contiguos.
+
+        Es el caso que Miguel observa al etiquetar los módulos averiados reales:
+        no siempre falla un grupo pegado ni sensores repartidos por todo el
+        detector, sino dos o tres separados por una o dos posiciones. Queda
+        justo entre 'cluster' (todos tocándose) y 'scatter' (por todas partes).
+        """
+        dist = {int(seed_ch): 0}
+        frontera = [int(seed_ch)]
+        for _ in range(saltos):
+            sig = []
+            for u in frontera:
+                for v in self.nbr[u]:
+                    v = int(v)
+                    if v >= 0 and v not in dist:
+                        dist[v] = dist[u] + 1
+                        sig.append(v)
+            frontera = sig
+        cand = [c for c in dist if c != int(seed_ch)]
+        if len(cand) < k - 1:                      # no deberia pasar en esta malla
+            return self._scatter(seed_ch, k)
+        extra = self.rng.choice(cand, size=k - 1, replace=False)
+        return np.concatenate([[seed_ch], extra]).astype(np.int64)
 
     def _scatter(self, seed_ch: int, k: int) -> np.ndarray:
         """Control DISPERSO: k sensores al azar por todo el detector (sin contigüidad)."""
@@ -298,6 +325,8 @@ class SiPMImputationDataset(Dataset):
             dead_idx = np.array([seed_ch], dtype=np.int64)
         elif self.dead_mode == 'cluster':
             dead_idx = self._grow_cluster(seed_ch, k)
+        elif self.dead_mode == 'near':
+            dead_idx = self._near(seed_ch, k)
         else:
             dead_idx = self._scatter(seed_ch, k)
 

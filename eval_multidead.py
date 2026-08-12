@@ -78,7 +78,8 @@ PSIPM_PATH = r'E:\Datos TFM\psipm.tsv'
 TEST_MAX_EVENTS = 200_000
 
 K_VALUES = (1, 2, 3, 4)              # tamaños de fallo a barrer
-MODES    = ('cluster', 'scatter')    # contiguo (real) vs disperso (control)
+# contiguo (fisico) | disperso (control) | cercano (lo que se observa en los BAD reales)
+MODES    = ('cluster', 'scatter', 'near')
 CLUSTER_SEED = 1234                  # semilla del crecimiento de clústeres (reproducible)
 
 USE_WANDB     = True
@@ -112,13 +113,45 @@ def scatter_set(seed_ch, k, rng):
     return np.array(sorted([int(seed_ch)] + [int(v) for v in extra]), dtype=np.int64)
 
 
+def near_set(nbr, seed_ch, k, rng, saltos=2):
+    """
+    Fallo DISPERSO PERO CERCANO: k sensores a menos de 'saltos' del semilla, sin
+    exigir contiguidad. Es el modo que se observa al etiquetar los modulos
+    averiados reales: ni un grupo pegado ni sensores por todo el detector, sino
+    dos o tres separados por una o dos posiciones. Queda entre los otros dos.
+    """
+    dist = {int(seed_ch): 0}
+    frontera = [int(seed_ch)]
+    for _ in range(saltos):
+        sig = []
+        for u in frontera:
+            for v in nbr[u]:
+                v = int(v)
+                if v >= 0 and v not in dist:
+                    dist[v] = dist[u] + 1
+                    sig.append(v)
+        frontera = sig
+    cand = [c for c in dist if c != int(seed_ch)]
+    if len(cand) < k - 1:
+        return scatter_set(seed_ch, k, rng)
+    extra = rng.choice(cand, size=k - 1, replace=False)
+    return np.concatenate([[seed_ch], extra]).astype(np.int64)
+
+
+_MODE_OFFSET = {'cluster': 0, 'scatter': 1, 'near': 2}
+
+
 def build_dead_sets(nbr, seeds, k, mode):
     """Un conjunto de muertos por sensor semilla. Determinista (semilla fija por k/modo)."""
-    rng = np.random.default_rng(CLUSTER_SEED + 1000 * k + (0 if mode == 'cluster' else 1))
+    rng = np.random.default_rng(CLUSTER_SEED + 1000 * k + _MODE_OFFSET.get(mode, 1))
     out = {}
     for s in seeds:
-        out[int(s)] = (grow_cluster(nbr, s, k, rng) if mode == 'cluster'
-                       else scatter_set(s, k, rng))
+        if mode == 'cluster':
+            out[int(s)] = grow_cluster(nbr, s, k, rng)
+        elif mode == 'near':
+            out[int(s)] = near_set(nbr, s, k, rng)
+        else:
+            out[int(s)] = scatter_set(s, k, rng)
     return out
 
 

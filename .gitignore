@@ -23,7 +23,7 @@ reports/*.npz
 figs_arquitecturas/
 
 # === Tabla de métricas (binario, se regenera desde los JSON de runs/) ===
-Metricas_runs_TFM.xlsx
+Metricas_runs_TFM*.xlsx
 
 # === Código antiguo (superseded) ===
 Old Code/
