@@ -2199,10 +2199,53 @@ La consecuencia metodológica es que las métricas agregadas carecen de una barr
 descrito en el párrafo anterior ---evaluar sobre los 119 módulos no observados--- permite estimarla
 sin reentrenar y se identifica como la comprobación pendiente de mayor valor.
 
-\paragraph{Ausencia de validación cruzada.} No se ha realizado validación cruzada por módulos. La
-razón no es el coste ---repetir el entrenamiento cinco veces es perfectamente asumible--- sino que
-el número de hiperparámetros a ajustar es reducido y la selección del punto de control ya descansa
-en un conjunto de validación independiente. Conviene, no obstante, precisar qué quedaría por
+\paragraph{Validación cruzada por módulos: la incertidumbre real del valor absoluto.} El
+procedimiento completo ---partición, entrenamiento y evaluación--- se repitió con
+\textbf{cinco particiones independientes}, cada una reservando cinco detectores distintos
+para la evaluación final.
+
+\begin{table}[htbp]
+\centering
+\caption{Resultado del procedimiento completo bajo cinco particiones independientes de los
+módulos.}
+\label{tab:cv-particiones}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Partición} & $\mathcal{R}_{p90}$ (\%) & $\mathcal{R}_{\text{media}}$ (\%) &
+\textbf{MAE} (ADC) \\
+\midrule
+A (empleada en el desarrollo) & 58.07 & 52.60 & 0.6186 \\
+B & 58.22 & 51.97 & 0.6288 \\
+C & 55.46 & 49.88 & 0.6437 \\
+D & 52.98 & 47.35 & 0.6858 \\
+E & 58.30 & 52.30 & 0.6104 \\
+\midrule
+\textbf{Media $\pm$ desviación típica} & $\mathbf{56.60 \pm 2.35}$ &
+$\mathbf{50.82 \pm 2.21}$ & $0.637 \pm 0.030$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El recorrido entre particiones alcanza los \textbf{5.3 puntos}, magnitud superior a cualquier
+diferencia entre modelos reportada en este trabajo, y la partición empleada durante el
+desarrollo resulta ser de las favorables. La dispersión no se estabiliza al aumentar el
+número de repeticiones ---pasa de $1.55$ con tres particiones a $2.35$ con cinco---, lo que
+indica que incluso esta estimación es conservadora.
+
+La consecuencia es doble y conviene enunciarla con precisión. Por un lado, \textbf{las
+comparaciones entre modelos conservan plena validez}: se realizan sobre la misma partición
+para todos ellos, de modo que el efecto del conjunto de test se cancela en la diferencia. Por
+otro, \textbf{el valor absoluto debe reportarse como $56.6 \pm 2.3\,\%$} en recuperación de
+percentil 90 y $50.8 \pm 2.2\,\%$ en media, y no como el valor puntual de una partición
+concreta. Es la distinción entre precisión relativa, que este trabajo alcanza con holgura, y
+exactitud absoluta, considerablemente más incierta.
+
+\paragraph{Alcance de la validación cruzada realizada.} Las cinco particiones acotan la
+sensibilidad de las métricas al conjunto de test, que era la pregunta pertinente. No se ha
+empleado en cambio para \emph{ajustar} nada, y no hacía falta: el número de hiperparámetros
+es reducido y la selección del punto de control ya descansa en un conjunto de validación
+independiente. Conviene, no obstante, precisar qué quedaría por
 resolver: la validación cruzada no se necesitaría aquí para \emph{ajustar} nada, sino para
 \textbf{acotar la sensibilidad de las métricas a qué cinco módulos concretos quedaron reservados
 para test}, que es una cuestión distinta y sí pertinente.

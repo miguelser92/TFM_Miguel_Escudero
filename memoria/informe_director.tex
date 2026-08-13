@@ -144,8 +144,16 @@ régimen desfavorable, que es el que estropea la imagen.
 
 \begin{idea}
 \noindent\textbf{Cifra principal.} Con un sensor averiado, la red recupera de media el
-\textbf{52.6\,\%} del desplazamiento de posición, y el \textbf{58.1\,\%} en el 10\,\% de
-eventos peores. El modelo tiene \textbf{38\,305 parámetros}, un tamaño muy modesto.
+\textbf{50.8 $\pm$ 2.2\,\%} del desplazamiento de posición, y el
+\textbf{56.6 $\pm$ 2.3\,\%} en el 10\,\% de eventos peores. El modelo tiene
+\textbf{38\,305 parámetros}, un tamaño muy modesto.
+
+\smallskip
+\noindent Las barras no son un detalle menor y conviene explicar de dónde salen: proceden de
+repetir todo el procedimiento con \textbf{cinco particiones distintas} de los datos, cada una
+reservando cinco detectores diferentes para la evaluación final. La dispersión entre ellas es
+la incertidumbre real de la cifra, y resulta ser unas veinte veces mayor que la debida a
+repetir el entrenamiento. Se detalla en la Sección~\ref{sec:variabilidad}.
 \end{idea}
 
 \begin{figure}[H]
@@ -364,6 +372,42 @@ esencialmente gratis}: con un solo fallo el modelo rinde igual que el especializ
 cambio aguanta mucho mejor los fallos grandes, incluso los de tamaño superior a los vistos
 durante el entrenamiento.
 
+\subsection{Con qué tipo de avería conviene entrenar}
+
+Queda una pregunta más fina, y su respuesta resultó ser el hallazgo más aprovechable de las
+últimas sesiones. Los dos regímenes anteriores ---sensores pegados y sensores repartidos por
+todo el detector--- son los dos \emph{extremos}. Al revisar a mano los módulos averiados
+reales aparece, sin embargo, un tercer caso muy frecuente que no estaba representado:
+\textbf{dos o tres sensores separados por una o dos posiciones}, ni pegados ni lejanos. Se
+añadió por ello un régimen intermedio, y se comprobó que efectivamente ocupa el punto medio:
+la separación media entre los sensores averiados es de 1.8 posiciones, frente a 1.2 en el
+contiguo y 17.6 en el disperso.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{fig-regimenes.png}
+\caption{\textbf{Con qué tipo de avería conviene entrenar el modelo.} Los tres paneles
+corresponden a los tres tipos de fallo sobre los que se \emph{evalúa}: sensores contiguos a
+la izquierda, el caso realista intermedio en el centro, y sensores dispersos a la derecha.
+Dentro de cada panel, el eje horizontal es el número de sensores averiados y el vertical el
+porcentaje de posición recuperada, de modo que \textbf{más arriba es mejor}. Las tres curvas
+son el \emph{mismo modelo} entrenado de tres maneras distintas: la \textbf{línea gris de
+puntos} entrenada con un solo sensor averiado, la \textbf{roja} con grupos contiguos y la
+\textbf{azul} con el caso intermedio. La lectura es directa: en el panel izquierdo la roja y
+la azul \textbf{se superponen} ---entrenar con el caso intermedio no cuesta nada frente a
+entrenar con contiguos---, mientras que en los paneles central y derecho \textbf{la azul
+queda por encima}, hasta casi tres puntos. La gris se desploma en cuanto falla más de un
+sensor, que es el peaje de no haber entrenado nunca con averías múltiples.}
+\label{fig:regimenes}
+\end{figure}
+
+La interpretación es geométrica y se sostiene sin necesidad de más experimentos: el régimen
+intermedio ocupa una posición central en el espacio de configuraciones de avería, de manera
+que \textbf{entrenar en el punto medio generaliza hacia los dos extremos, mientras que
+entrenar en un extremo no alcanza el centro}. La consecuencia práctica es que el modelo
+destinado a producción debería entrenarse con este régimen, que además es el que corresponde
+a lo que realmente se observa en los módulos averiados.
+
 \section{Cuánto varía de un detector a otro}
 \label{sec:variabilidad}
 
@@ -393,18 +437,62 @@ distintos, da resultados muy distintos.}
 \label{fig:variabilidad}
 \end{figure}
 
-Para poner esa cifra en contexto: entrenando tres veces el mismo modelo con distinta semilla
-de inicialización, la dispersión de los resultados es de apenas \textbf{0.09 puntos}. La
-variabilidad debida a \textbf{qué detector} se mide es, por tanto, unas \textbf{ochenta veces
-mayor} que la debida a cómo se entrenó.
+Para poner esa cifra en contexto: repitiendo el mismo entrenamiento cuatro veces con distinta
+semilla de inicialización, la dispersión de los resultados es de apenas \textbf{0.13
+puntos}. La variabilidad debida a \textbf{qué detector} se mide es, por tanto, unas
+\textbf{sesenta veces mayor} que la debida a cómo se entrenó.
+
+\subsection{La comprobación definitiva: repetirlo todo cinco veces}
+
+El análisis anterior mide la variabilidad de la \emph{medida}. Queda una pregunta más
+exigente: si se rehiciera el trabajo entero ---partición, entrenamiento y evaluación---
+reservando otros cinco detectores, ¿saldría lo mismo? Para responderla se repitió el
+procedimiento completo con \textbf{cinco particiones independientes}.
+
+\begin{table}[H]
+\centering
+\caption{El procedimiento completo repetido con cinco particiones distintas de los datos.
+Cada fila reserva cinco detectores diferentes para la evaluación final.}
+\label{tab:cv}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Partición} & \textbf{Recuperación p90} (\%) & \textbf{Recuperación media} (\%) &
+\textbf{Error de carga} \\
+\midrule
+A (la empleada hasta ahora) & 58.07 & 52.60 & 0.619 \\
+B & 58.22 & 51.97 & 0.629 \\
+C & 55.46 & 49.88 & 0.644 \\
+D & 52.98 & 47.35 & 0.686 \\
+E & 58.30 & 52.30 & 0.610 \\
+\midrule
+\textbf{Media $\pm$ desviación} & $\mathbf{56.6 \pm 2.3}$ & $\mathbf{50.8 \pm 2.2}$ &
+$0.637 \pm 0.030$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El recorrido entre la mejor y la peor partición es de \textbf{5.3 puntos}, superior a
+cualquier diferencia entre modelos reportada en todo el trabajo. Y conviene señalar que la
+partición empleada durante el desarrollo resultó ser de las favorables.
 
 \begin{idea}
-\noindent\textbf{Qué cambia y qué no.} Las comparaciones entre modelos siguen siendo
-válidas, porque todas se hacen sobre \emph{los mismos} cinco módulos: el efecto del detector
-se cancela al comparar. Lo que no puede afirmarse es que el método recupere el 58\,\% en un
-detector cualquiera; esa extrapolación tiene una incertidumbre de $\pm 3.5$ puntos y una
-dispersión de $\pm 7.9$ entre unidades. Es la diferencia entre \emph{precisión relativa},
-que es excelente, y \emph{exactitud absoluta}, que es mucho más incierta.
+\noindent\textbf{Qué cambia y qué no.} Este es probablemente el punto más importante del
+informe, y es fácil sacar la conclusión equivocada.
+
+\smallskip
+\noindent\textbf{Lo que no cambia:} todas las comparaciones entre modelos siguen siendo
+válidas. Se hacen sobre \emph{los mismos} detectores para todos los modelos, de modo que el
+efecto de la partición se cancela al restar. Ninguna conclusión del trabajo se ve afectada.
+
+\smallskip
+\noindent\textbf{Lo que sí cambia:} la cifra absoluta. No puede afirmarse que el método
+recupere el 58\,\% en un detector cualquiera; lo correcto es $\mathbf{56.6 \pm 2.3\,\%}$, y
+la dispersión entre unidades individuales llega a $\pm 7.9$ puntos.
+
+\smallskip
+\noindent Es la distinción entre \emph{precisión relativa} ---excelente: se pueden ordenar
+modelos con confianza--- y \emph{exactitud absoluta} ---mucho más incierta: no se sabe con
+precisión qué rendimiento tendría en un equipo nuevo---. Ambas cosas son ciertas a la vez.
 \end{idea}
 
 Este resultado explicó además un caso que llevaba semanas abierto. El sensor
