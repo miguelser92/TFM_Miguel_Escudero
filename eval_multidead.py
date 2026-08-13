@@ -331,8 +331,13 @@ def eval_model(run_name, X_list, orig_xy, deg, x_sipm, y_sipm, dead_sets_all, de
 def make_figures(run_name, per_set, curve, x_sipm, y_sipm, out_dir):
     """La curva (figura estrella) + mapas hexagonales de recuperación por semilla."""
     pngs = []
-    C = {'cluster': '#c0392b', 'scatter': '#2471a3'}
-    M = {'cluster': 'o', 'scatter': 's'}
+    # Estilos por regimen. Se usa .get con valor por defecto para que anadir un
+    # modo nuevo a MODES no vuelva a romper el dibujo despues de una hora de
+    # calculo, como paso al introducir 'near'.
+    C = {'cluster': '#c0392b', 'scatter': '#2471a3', 'near': '#e67e22'}
+    M = {'cluster': 'o', 'scatter': 's', 'near': '^'}
+    LBL = {'cluster': 'contiguous cluster', 'scatter': 'scattered (control)',
+           'near': 'near-scattered (realistic)'}
 
     # ── PNG 1: recuperación RELATIVA + error ABSOLUTO vs tamaño del fallo ──
     # OJO: la recuperación % es relativa a un degradado que TAMBIÉN crece con k, así
@@ -348,17 +353,17 @@ def make_figures(run_name, per_set, curve, x_sipm, y_sipm, out_dir):
             ks = [k for k in K_VALUES if f'{mode}_k{k}' in curve]
             if not ks:
                 continue
-            lbl = 'contiguous cluster' if mode == 'cluster' else 'scattered (control)'
+            lbl = LBL.get(mode, mode)
             if key is None:
                 # Panel absoluto: ΔR imputado (línea) y degradado (discontinua, referencia)
                 ax.plot(ks, [curve[f'{mode}_k{k}']['dR_imp_p90_macro'] for k in ks],
-                        marker=M[mode], color=C[mode], lw=2, ms=7, label=f'{lbl} — imputed')
+                        marker=M.get(mode, 'D'), color=C.get(mode, '#7f8c8d'), lw=2, ms=7, label=f'{lbl} — imputed')
                 ax.plot(ks, [curve[f'{mode}_k{k}']['dR_deg_p90_macro'] for k in ks],
-                        marker=M[mode], color=C[mode], lw=1.4, ms=5, ls='--', alpha=0.55,
+                        marker=M.get(mode, 'D'), color=C.get(mode, '#7f8c8d'), lw=1.4, ms=5, ls='--', alpha=0.55,
                         label=f'{lbl} — degraded')
             else:
                 ax.plot(ks, [curve[f'{mode}_k{k}'][key] for k in ks],
-                        marker=M[mode], color=C[mode], lw=2, ms=7, label=lbl)
+                        marker=M.get(mode, 'D'), color=C.get(mode, '#7f8c8d'), lw=2, ms=7, label=lbl)
         ax.set_xlabel('Number of dead sensors (k)')
         ax.set_ylabel(title)
         ax.set_title(title, fontsize=11)
