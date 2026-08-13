@@ -646,8 +646,8 @@ if __name__ == '__main__':
             N_DEAD = int(spec); dead_sfx = f'_dead{N_DEAD}'
         if '--deadmode' in argv:
             j = argv.index('--deadmode')
-            assert j + 1 < len(argv) and argv[j + 1] in ('cluster', 'scatter'), \
-                "uso: --deadmode cluster|scatter"
+            assert j + 1 < len(argv) and argv[j + 1] in ('cluster', 'scatter', 'near'), \
+                "uso: --deadmode cluster|scatter|near"
             DEAD_MODE = argv[j + 1]; del argv[j:j + 2]
             if DEAD_MODE != 'cluster':
                 dead_sfx += f'_{DEAD_MODE}'      # 'cluster' es el modo por defecto → sin sufijo
