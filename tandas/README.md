@@ -17,5 +17,5 @@ detiene si un paso falla.
 Los logs van a  y no se versionan: son reproducibles relanzando el script,
 y las conclusiones estan en la bitacora y en el Excel.
 
-Uso:  y despues , o copiar el script a la raiz si
-se prefiere lanzarlo desde alli.
+Uso: desde la raiz del proyecto, lanzar el script indicando la subcarpeta, o
+copiarlo a la raiz si se prefiere ejecutarlo desde alli.
