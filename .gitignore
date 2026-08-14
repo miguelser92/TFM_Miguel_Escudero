@@ -32,3 +32,7 @@ Old Code/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# === Tandas nocturnas: scripts versionados, logs no ===
+tandas/logs/
+*.log
