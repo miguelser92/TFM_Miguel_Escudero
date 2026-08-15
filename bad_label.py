@@ -29,11 +29,23 @@ CONTROLES
             se cae a mitad de la adquisición no se ve en el promedio global).
   ← / →   : módulo anterior / siguiente (guarda automáticamente el actual).
   i       : imputar los canales marcados y refrescar el panel derecho.
+  + / -   : subir o bajar la RESOLUCIÓN del flood map. Con pocos bins se ve la
+            retícula entera; con muchos, el hueco de un sensor concreto.
+  z       : ZOOM al entorno de los sensores marcados (y de vuelta). En vista
+            completa el hueco de un sensor ocupa unos pocos píxeles.
+  d       : panel derecho entre IMPUTADO y DIFERENCIA (imputado − crudo). La
+            diferencia muestra en rojo dónde la imputación añade cuentas y en azul
+            dónde las quita, que se lee mucho mejor que comparar dos mapas casi
+            iguales a ojo.
   u       : precargar la sugerencia del estadístico automático (punto de partida).
   c       : limpiar todas las marcas del módulo.
   r       : marcar el módulo como revisado sin canales averiados.
   s       : guardar el JSON ahora.
   q       : guardar y salir.
+
+Los dos flood maps llevan color propio (azul el medido, verde el reconstruido,
+morado la diferencia) en el título y en el borde, porque son casi idénticos y sin
+esa marca es fácil creer que se está mirando el otro.
 
 USO
 ---
@@ -226,7 +238,19 @@ class Labeler:
         self.marked = set()            # índices densos marcados a mano
         self.X_imp_cache = None        # flood imputado ya calculado
         self.color_mode = 'z-score'
+        # Resolucion del flood map, ajustable en caliente con + y -. Una resolucion
+        # fija no sirve: para localizar el hueco de un sensor hace falta fino, y para
+        # ver la reticula completa conviene grueso.
+        self.bins = None               # se fija al arrancar desde args.bins
+        # Zoom: None = detector completo. Con sensores marcados, 'z' encuadra su zona,
+        # que es donde hay que mirar para decidir si el sensor falla.
+        self.zoom = None
+        # Panel derecho: 'imputed' (flood reconstruido) o 'diff' (imputado - crudo).
+        # El modo diferencia resalta DONDE cambia el mapa, que es mas informativo que
+        # comparar dos floods casi identicos a ojo.
+        self.right_mode = 'imputed'
 
+        self.bins = int(self.args.bins)
         self._build_figure()
         self.load_current(first=True)
 
@@ -384,10 +408,47 @@ class Labeler:
         elif k == 'r':
             self.marked.clear(); self.store_current(reviewed=True)
             self.X_imp_cache = None; self.refresh()
+        elif k in ('+', '='):                  # mas resolucion
+            self.bins = min(int(self.bins * 1.4), 600); self.refresh()
+        elif k in ('-', '_'):                  # menos resolucion
+            self.bins = max(int(self.bins / 1.4), 20); self.refresh()
+        elif k == 'z':                         # zoom a los sensores marcados
+            self.toggle_zoom()
+        elif k == 'd':                         # panel derecho: imputado / diferencia
+            self.right_mode = 'diff' if self.right_mode == 'imputed' else 'imputed'
+            self.refresh()
         elif k == 's':
             self.save()
         elif k == 'q':
             self.save(); plt.close(self.fig)
+
+    def toggle_zoom(self):
+        """
+        Alterna entre el detector completo y un encuadre alrededor de los sensores
+        marcados. Con la vista completa el hueco de un solo sensor ocupa unos pocos
+        pixeles y no se distingue; ampliando su entorno si.
+        """
+        if self.zoom is not None:
+            self.zoom = None
+        elif self.marked:
+            xs = [self.x_sipm[i] for i in self.marked]
+            ys = [self.y_sipm[i] for i in self.marked]
+            m = self.pitch * 2.2                      # margen: ~2 anillos de vecinos
+            x0, x1 = min(xs) - m, max(xs) + m
+            y0, y1 = min(ys) - m, max(ys) + m
+            # Cuadrar la ventana: con aspect igual, un recuadro alargado deja bandas
+            # muertas a los lados y se aprovecha peor el panel.
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            r = max(x1 - x0, y1 - y0) / 2
+            x0, x1, y0, y1 = cx - r, cx + r, cy - r, cy + r
+            # Y recortarla al detector: fuera de el solo hay fondo vacio.
+            x0 = max(x0, self.extent[0]); x1 = min(x1, self.extent[1])
+            y0 = max(y0, self.extent[2]); y1 = min(y1, self.extent[3])
+            self.zoom = [[x0, x1], [y0, y1]]
+        else:
+            print('  (marca algun sensor antes de hacer zoom)')
+            return
+        self.refresh()
 
     def step(self, d):
         """Cambia de módulo guardando el actual."""
@@ -458,7 +519,8 @@ class Labeler:
             f'{self.fname}   [{self.mi+1}/{len(self.files)}]   '
             f'events {a}–{b_raw}{cut} of {len(self.X)}   ·   marked: '
             f'{", ".join(f"Ich{IDX_TO_ICH[i]}" for i in sorted(self.marked)) or "none"}   ·   '
-            f'reviewed {n_rev}/{len(self.files)}',
+            f'reviewed {n_rev}/{len(self.files)}   ·   '
+            f'{self.bins} bins{"  · ZOOM" if self.zoom is not None else ""}',
             fontsize=12, fontweight='bold')
         self.fig.canvas.draw_idle()
 
@@ -497,24 +559,69 @@ class Labeler:
             self._cb.update_normal(plt.cm.ScalarMappable(norm=norm, cmap=cmap))
         self._cb.set_label(cbl, fontsize=9)
 
-    def _flood(self, ax, px, py, title):
+    def _rango(self):
+        """Ventana espacial a dibujar: detector completo, o zoom a los marcados."""
+        if self.zoom is None:
+            return [[self.extent[0], self.extent[1]], [self.extent[2], self.extent[3]]]
+        return self.zoom
+
+    def _flood(self, ax, px, py, title, color='#2471a3'):
+        """
+        Un flood map. El parametro 'color' da identidad visual al panel: los dos
+        mapas son casi identicos y sin una marca clara es facil confundirlos, que
+        es justo lo que pasaba antes.
+        """
         ax.clear()
-        ax.hist2d(px, py, bins=self.args.bins,
-                  range=[[self.extent[0], self.extent[1]], [self.extent[2], self.extent[3]]],
+        rng = self._rango()
+        ax.hist2d(px, py, bins=self.bins, range=rng,
                   cmap='plasma', norm=PowerNorm(0.55))
         ax.scatter(self.x_sipm, self.y_sipm, facecolors='none', edgecolors='white',
                    s=45, linewidths=0.4, alpha=0.35, zorder=3)
         for i in self.marked:                  # sensores marcados, sin tapar el mapa
             ax.add_patch(Circle((self.x_sipm[i], self.y_sipm[i]), self.pitch * 0.45,
-                                facecolor='none', edgecolor='red', lw=2.0, zorder=4))
+                                facecolor='none', edgecolor=color, lw=2.2, zorder=4))
+        ax.set_xlim(rng[0]); ax.set_ylim(rng[1])
         ax.set_aspect('equal')
         ax.set_xlabel('X [mm]', fontsize=9); ax.set_ylabel('Y [mm]', fontsize=9)
         ax.tick_params(labelsize=8)
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title, fontsize=10, color=color, fontweight='bold')
+        for sp in ax.spines.values():          # borde del panel del mismo color
+            sp.set_edgecolor(color); sp.set_linewidth(1.8)
+
+    def _flood_diff(self, ax, px_i, py_i, px_r, py_r, title, color='#8e44ad'):
+        """
+        Diferencia imputado menos crudo. Rojo donde la imputacion ANADE cuentas y
+        azul donde las quita, de modo que se ve de un vistazo que zona del mapa
+        cambia. Comparar dos flood maps casi iguales a ojo no funciona.
+        """
+        ax.clear()
+        rng = self._rango()
+        Hi, xe, ye = np.histogram2d(px_i, py_i, bins=self.bins, range=rng)
+        Hr, _, _   = np.histogram2d(px_r, py_r, bins=self.bins, range=rng)
+        D = Hi - Hr
+        v = np.percentile(np.abs(D), 99.5) or 1.0
+        ax.imshow(D.T, origin='lower', extent=[xe[0], xe[-1], ye[0], ye[-1]],
+                  cmap='coolwarm', vmin=-v, vmax=v, aspect='equal')
+        ax.scatter(self.x_sipm, self.y_sipm, facecolors='none', edgecolors='0.35',
+                   s=45, linewidths=0.4, alpha=0.5, zorder=3)
+        for i in self.marked:
+            ax.add_patch(Circle((self.x_sipm[i], self.y_sipm[i]), self.pitch * 0.45,
+                                facecolor='none', edgecolor=color, lw=2.2, zorder=4))
+        ax.set_xlim(rng[0]); ax.set_ylim(rng[1])
+        ax.set_xlabel('X [mm]', fontsize=9); ax.set_ylabel('Y [mm]', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.set_title(title, fontsize=10, color=color, fontweight='bold')
+        for sp in ax.spines.values():
+            sp.set_edgecolor(color); sp.set_linewidth(1.8)
+
+    RAW_C  = '#2471a3'      # azul: mapa medido
+    IMP_C  = '#27ae60'      # verde: mapa reconstruido
+    DIFF_C = '#8e44ad'      # morado: diferencia
 
     def _draw_flood(self, a, b):
         px, py = self.pos
-        self._flood(self.ax_raw, px[a:b], py[a:b], f'Flood map — raw ({b-a} events)')
+        self._flood(self.ax_raw, px[a:b], py[a:b],
+                    f'RAW — measured ({b-a} events)', self.RAW_C)
 
     def _draw_imputed(self, cache):
         ax = self.ax_imp
@@ -524,13 +631,21 @@ class Labeler:
                    if self.marked else 'Flag sensors, then press "i"')
             ax.text(0.5, 0.5, msg, ha='center', va='center', fontsize=11,
                     color='0.45', transform=ax.transAxes)
-            ax.set_title('Flood map — imputed', fontsize=10)
+            c = self.DIFF_C if self.right_mode == 'diff' else self.IMP_C
+            ax.set_title('DIFF imputed − raw' if self.right_mode == 'diff' else 'IMPUTED',
+                         fontsize=10, color=c, fontweight='bold')
             return
         (px, py), (a, b), dead = cache
         # Con muchos canales la lista no cabe en el título: se resume.
         ich = (', '.join(f'Ich{IDX_TO_ICH[i]}' for i in dead) if len(dead) <= 4
                else f'{len(dead)} channels')
-        self._flood(ax, px, py, f'Flood map — imputed [{ich}]  ({b-a} events)')
+        if self.right_mode == 'diff':
+            pr, pyr = self.pos
+            self._flood_diff(ax, px, py, pr[a:b], pyr[a:b],
+                             f'DIFF imputed − raw [{ich}]   red=added  blue=removed',
+                             self.DIFF_C)
+        else:
+            self._flood(ax, px, py, f'IMPUTED [{ich}]  ({b-a} events)', self.IMP_C)
 
     def _draw_profile(self, n_events):
         ax = self.ax_prof
