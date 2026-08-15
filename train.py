@@ -83,14 +83,23 @@ HEXCNN_SIZES = {
     'l': dict(hidden=128, n_blocks=6),
 }
 
-N_EPOCHS      = 40
+# COBERTURA COMPLETA POR DEFECTO. La rotacion de ficheros es un round-robin, asi
+# que el numero de epocas ES el numero de modulos distintos que ve el modelo. Con
+# 40 epocas solo se veian 40 de los 149 disponibles, y siempre los mismos.
+# Medido el 11/08 a coste identico: la recuperacion MEDIA no cambia (52.60 -> 52.55,
+# dentro de la banda) pero el PEOR CANAL mejora 8.4 puntos (39.4 -> 47.8). Sabiendo
+# eso, entrenar con cobertura parcial no tiene defensa: 149 epocas es el default.
+N_EPOCHS      = 149
 BATCH_SIZE    = 512
 LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
 PATIENCE      = N_EPOCHS     # = sin corte temprano: entrena el presupuesto completo y
                             # guarda el mejor checkpoint por val_mae_mod (ver selección abajo).
                             # Datos infinitos on-the-fly → sin sobreajuste por entrenar las 40.
-MAX_EVENTS    = 400_000     # tope de eventos por archivo y época (controla tiempo/RAM)
+# Eventos por epoca. Con 149 epocas, 107k mantiene el presupuesto total de ~16M
+# muestras del protocolo historico (40 x 400k), de modo que el cambio de cobertura
+# no viene acompanado de un cambio de coste.
+MAX_EVENTS    = 107_000
 # Eventos TOTALES del conjunto de validación. Va aparte de MAX_EVENTS a propósito:
 # si dependiera de él, bajar --maxev encogería también la validación y el val_mae_mod
 # dejaría de ser comparable entre runs (que es justo lo que hay que poder comparar).
@@ -98,7 +107,10 @@ VAL_MAX_EVENTS = 400_000
 # Semilla para BARAJAR el orden de rotación de los ficheros de train (flag --rotseed).
 # None = orden alfabético (comportamiento histórico). Ver la nota de cobertura en main():
 # con N_EPOCHS < nº de ficheros el round-robin no da la vuelta y solo se ven los primeros.
-ROT_SEED      = None
+# Con 149 epocas se recorren todos los ficheros igualmente, pero el orden importa:
+# el ritmo de aprendizaje decae con la epoca, asi que en orden alfabetico los
+# ultimos modulos apenas contribuirian. Se baraja por defecto.
+ROT_SEED      = 7
 # Nº de módulos que se MEZCLAN en cada época (flag --mix). Con 1 (histórico) cada
 # época carga un único detector, de modo que todos los lotes de esa época proceden
 # del mismo módulo y el gradiente de cada paso está sesgado hacia él. Y los módulos
