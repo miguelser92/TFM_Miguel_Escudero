@@ -345,7 +345,7 @@ def main():
                     # distintos ve realmente el modelo y con qué orden de rotación.
                     'rot_seed': ROT_SEED, 'mix_modules': MIX_MODULES,
                     'n_train_files': len(train_files),
-                    'n_modules_seen': min(N_EPOCHS, len(train_files)),
+                    'n_modules_seen': min(N_EPOCHS * MIX_MODULES, len(train_files)),
                 },
             )
         except ImportError:
@@ -498,7 +498,7 @@ def main():
                 'mix_modules':    MIX_MODULES,
                 'n_epochs':       N_EPOCHS,
                 'max_events':     MAX_EVENTS,
-                'n_modules_seen': min(N_EPOCHS, len(train_files)),
+                'n_modules_seen': min(N_EPOCHS * MIX_MODULES, len(train_files)),
             }, ckpt_path)
             flag = '  ✓ best'
         else:
