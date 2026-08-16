@@ -13,9 +13,10 @@ detiene si un paso falla.
 | noche_cv_near.ps1 | 13 ago | Particiones D y E, y el regimen de fallo cercano |
 | noche_produccion.ps1 | 14 ago | Modelo de produccion y acumulabilidad de la robustez |
 | noche_replicas.ps1 | 14 ago | Replicas de los dos hallazgos del dia anterior |
+| noche_protocolo_bueno.ps1 | 15 ago | Modelo de referencia con cobertura completa (149 modulos) y su banda: la media no cambia, el peor canal sube +2.2 pts |
 
-Los logs van a  y no se versionan: son reproducibles relanzando el script,
-y las conclusiones estan en la bitacora y en el Excel.
+Los logs van a `tandas/logs/` y no se versionan: son reproducibles relanzando el
+script, y las conclusiones estan en la bitacora y en el Excel.
 
 Uso: desde la raiz del proyecto, lanzar el script indicando la subcarpeta, o
 copiarlo a la raiz si se prefiere ejecutarlo desde alli.

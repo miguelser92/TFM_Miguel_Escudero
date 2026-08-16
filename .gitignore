@@ -36,3 +36,16 @@ desktop.ini
 # === Tandas nocturnas: scripts versionados, logs no ===
 tandas/logs/
 *.log
+
+# === LaTeX: se versiona el .tex, no lo que produce al compilar ===
+# (el PDF se genera en Overleaf; los auxiliares cambian en cada pasada
+#  y solo ensucian el diff)
+memoria/*.aux
+memoria/*.fdb_latexmk
+memoria/*.fls
+memoria/*.lof
+memoria/*.lot
+memoria/*.out
+memoria/*.toc
+memoria/*.synctex.gz
+# el PDF compilado SI se versiona: es lo que se le pasa al director
