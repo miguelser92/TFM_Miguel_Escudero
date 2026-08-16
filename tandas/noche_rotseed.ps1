@@ -1,24 +1,25 @@
 # =====================================================================
 #  noche_rotseed.ps1 — la banda de verdad del peor canal
 # =====================================================================
-#  La tanda del 15/08 (full1/2/3, semillas 801-803) dio sd = 0.21 en el
-#  peor canal. Esa banda esta SUBESTIMADA: entre aquellas tres replicas
-#  solo cambiaba la inicializacion de pesos.
+#  La tanda del 15/08 (full1/2/3, semillas 801-803) dio peor canal
+#  44.78 +/- 0.21. Esa banda es legitima: --seed mueve la inicializacion
+#  de pesos Y las mascaras (el rng del Dataset se consume dentro de
+#  __getitem__, asi que el orden del shuffle decide que mascara toca a
+#  cada evento; verificado el 16/08).
 #
-#   - el masking depende de la EPOCA (seed=epoch en train.py), no de --seed
-#   - el orden de modulos es fijo (rot_seed = 7 por defecto)
+#  El problema es otro: cov149, con el MISMO protocolo y sin mas
+#  diferencia que no haber fijado semilla, da 47.76. Catorce sd fuera.
+#  Deberia caer dentro. Lo mas probable es que con n=3 la sd este mal
+#  estimada y el minimo sobre 61 canales tenga colas largas.
 #
-#  Las tres veian los mismos modulos, en el mismo orden, con las mismas
-#  mascaras. Aqui se fija --seed y se varia --rotseed.
+#  Esta tanda hace dos cosas a la vez:
+#   1. duplica la muestra (n=3 -> n=6) para estimar la sd en condiciones
+#   2. varia --rotseed, la unica fuente de azar que --seed NO toca
 #
-#  Matiz: con cobertura completa las 149 epocas recorren los 149 modulos,
-#  asi que --rotseed no cambia QUE modulos se ven (se ven todos). Cambia
-#  el ORDEN, y como la mascara depende de la epoca, cambia el
-#  EMPAREJAMIENTO modulo <-> mascara y en que modulo cae la epoca que
-#  acaba seleccionada. Eso es justo la variabilidad que --seed no captura.
-#
-#  Contraste que lo motiva: cov149, con el mismo protocolo nominal, da
-#  peor canal 47.76 frente a 44.78 +/- 0.21. Catorce sd fuera de banda.
+#  Sobre el punto 2: con cobertura completa las 149 epocas recorren los
+#  149 modulos, asi que --rotseed no cambia QUE modulos se ven (se ven
+#  todos), sino su ORDEN, y con el en que modulo cae la epoca que acaba
+#  seleccionada como mejor.
 #
 #  Uso:  .\tandas\noche_rotseed.ps1        (~11.5 h)
 # =====================================================================
@@ -70,7 +71,7 @@ $tot = [math]::Round(((Get-Date) - $t0).TotalHours, 2)
 Log "=== RESUMEN ($tot h) ==="
 foreach ($r in $resumen) { Log ("  {0,-44} {1,-20} {2,6} min" -f $r.Tarea, $r.Estado, $r.Minutos) }
 Log ""
-Log "Comparar la sd de estos tres con la de full1/2/3 (0.21). Si es mucho mayor,"
-Log "queda demostrado que la banda buena es esta y que el peor canal no se puede"
-Log "reportar con la barra de --seed."
+Log "Juntar estos tres con full1/2/3 y recalcular la sd con n=6. Si la banda se"
+Log "ensancha hasta abarcar el 47.8 de cov149, el problema era la estimacion con"
+Log "n=3 y el caso queda cerrado. Si no, hay algo no identificado y toca buscarlo."
 Pop-Location
