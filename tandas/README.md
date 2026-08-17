@@ -14,6 +14,9 @@ detiene si un paso falla.
 | noche_produccion.ps1 | 14 ago | Modelo de produccion y acumulabilidad de la robustez |
 | noche_replicas.ps1 | 14 ago | Replicas de los dos hallazgos del dia anterior |
 | noche_protocolo_bueno.ps1 | 15 ago | Modelo de referencia con cobertura completa (149 modulos) y su banda: la media no cambia, el peor canal sube +2.2 pts |
+| noche_banda.ps1 | 17 ago | Barra de error REAL del peor canal variando semilla y orden juntos: 42,3 +/- 4,5 (n=4), 21x mas ancha que la de --seed sola. Cierra el caso cov149 y retira el "techo de robustez" |
+| noche_near_completo.ps1 | 17 ago | (pendiente) El modelo recomendado 'near' con cobertura completa y su banda. Los near existentes estan con 40 modulos |
+| noche_mix_estabilidad.ps1 | 17 ago | (pendiente) Si --mix 4 reduce la DISPERSION del peor canal. Se compara la sd contra 4,45, no la media |
 
 Los logs van a `tandas/logs/` y no se versionan: son reproducibles relanzando el
 script, y las conclusiones estan en la bitacora y en el Excel.
