@@ -38,17 +38,25 @@ Push-Location $raiz
 $commit = (git rev-parse --short HEAD).Trim()
 $sucio  = (git status --porcelain)
 
+# Se SALTA lo que ya este calculado, asi que la tanda se puede relanzar tantas
+# veces como haga falta sin repetir trabajo ni tener que editar nada a mano.
 $tareas = @()
-foreach ($rot in 11, 13, 17) {
-    $tareas += @{ n = "MULTIDEAD near rot$rot"
-                  a = @('eval_multidead.py',"imputer_hexcnn_s_mse_dead1-4_near_banda$rot",
-                        '--out','MULTIDEAD_3MODOS','--seeds','20') }
+foreach ($m in @(
+        @{ etq = 'near';       run = 'imputer_hexcnn_s_mse_dead1-4_near_banda' },
+        @{ etq = 'referencia'; run = 'imputer_hexcnn_s_mse_banda' })) {
+    foreach ($rot in 11, 13, 17) {
+        $run  = "$($m.run)$rot"
+        $hecho = Join-Path $raiz "runs\$run\MULTIDEAD_3MODOS\eval_multidead_metrics.json"
+        if (Test-Path $hecho) {
+            Write-Host "  ya hecho, se salta: $($m.etq) rot$rot"
+            continue
+        }
+        $tareas += @{ n = "MULTIDEAD $($m.etq) rot$rot"
+                      a = @('eval_multidead.py',$run,'--out','MULTIDEAD_3MODOS','--seeds','20') }
+    }
 }
-foreach ($rot in 11, 13, 17) {
-    $tareas += @{ n = "MULTIDEAD referencia rot$rot"
-                  a = @('eval_multidead.py',"imputer_hexcnn_s_mse_banda$rot",
-                        '--out','MULTIDEAD_3MODOS','--seeds','20') }
-}
+if ($tareas.Count -eq 0) { Write-Host "Nada pendiente: los seis evals ya estan."; Pop-Location; exit 0 }
+Write-Host "Pendientes: $($tareas.Count) de 6"
 
 function Log($msg) {
     $linea = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg
