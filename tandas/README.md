@@ -16,7 +16,7 @@ detiene si un paso falla.
 | noche_protocolo_bueno.ps1 | 15 ago | Modelo de referencia con cobertura completa (149 modulos) y su banda: la media no cambia, el peor canal sube +2.2 pts |
 | noche_banda.ps1 | 17 ago | Barra de error REAL del peor canal variando semilla y orden juntos: 42,3 +/- 4,5 (n=4), 21x mas ancha que la de --seed sola. Cierra el caso cov149 y retira el "techo de robustez" |
 | noche_near_completo.ps1 | 18 ago | 'near' con cobertura completa, 3 replicas (15,9 h, no 11,5: los train de near tardan 240 min). En k=1 queda por debajo de la referencia, pero k=1 no es la metrica que decide |
-| noche_multidead_near.ps1 | 18 ago | (pendiente) La comparacion que SI decide: near vs referencia en los tres regimenes, ambos con cobertura completa. Solo evaluacion, los modelos ya estan |
+| noche_multidead_near.ps1 | 19 ago | near vs referencia en los tres regimenes con cobertura completa. CAE la ventaja de near (equivalente a cluster, <2 sd); lo que queda es que entrenar multi-dead vale +24 pts sobre entrenar con k=1 |
 | noche_mix_estabilidad.ps1 | 17 ago | (pendiente) Si --mix 4 reduce la DISPERSION del peor canal. Se compara la sd contra 4,45, no la media |
 
 Los logs van a `tandas/logs/` y no se versionan: son reproducibles relanzando el

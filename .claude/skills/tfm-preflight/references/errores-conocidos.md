@@ -108,4 +108,19 @@ Este fichero es acumulativo: no se borran entradas aunque estén corregidas. Una
 
 ---
 
+### E10 — Evaluar con la métrica o el comparador que no responden la pregunta
+
+- **Qué pasó:** dos veces seguidas al montar tandas sobre el modelo `near`.
+  1. Se encadenó `eval_total` (que mide **un solo canal apagado**) para validar una afirmación sobre **los tres regímenes de fallo multi-canal**, que se mide con `eval_multidead`. El modelo perdía en k=1 por construcción, y eso no decía nada de la pregunta.
+  2. Corregido lo anterior, se comparó `near` contra la **referencia entrenada con k=1**, que en multi-dead se desploma por construcción. Un hombre de paja: ganarle no demuestra que `near` sea mejor que las **otras variantes multi-dead**, que es lo que estaba en discusión.
+- **Síntoma observable:** un resultado espectacular y en la dirección esperada (+24 puntos). **Una ventaja enorme frente a un comparador es señal de alarma, no de éxito**: suele significar que el comparador no era el rival. La pista aquí fueron las sd del comparador (±11,7), imposibles en un modelo sano.
+- **Detección**, antes de escribir la tanda:
+  - Escribir la afirmación exacta que se quiere poder defender, y preguntarse **qué dos números la sostienen**. Si la frase es "A es mejor que B en el escenario X", el eval tiene que medir X y B tiene que ser el rival real.
+  - **El comparador debe diferir en una sola cosa.** `near` vs referencia difiere en régimen *y* en si es multi-dead: dos ejes, resultado ininterpretable. `near` vs `cluster` multi-dead difiere solo en el régimen.
+  - Comprobar que el comparador tiene el **mismo protocolo** (cobertura, presupuesto) y la **misma campaña** de evaluación (`n_seeds`, `max_events_per_file`).
+- **Arreglo:** ninguno estructural, es disciplina de diseño. La plantilla de informe lo fuerza con el campo *«qué decisión depende del resultado»*: si no se puede rellenar, la tanda no está lista.
+- **Estado:** **recurrente.** Detectado el 19/08. Ambas veces la parte cara (el entrenamiento) estaba bien hecha y solo hubo que repetir evaluaciones, pero costó dos noches.
+
+---
+
 <!-- Entradas nuevas debajo de esta línea, numeración correlativa. Cada una necesita su receta de detección. -->
