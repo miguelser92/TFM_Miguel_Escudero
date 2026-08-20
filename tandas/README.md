@@ -16,8 +16,10 @@ detiene si un paso falla.
 | noche_protocolo_bueno.ps1 | 15 ago | Modelo de referencia con cobertura completa (149 modulos) y su banda: la media no cambia, el peor canal sube +2.2 pts |
 | noche_banda.ps1 | 17 ago | Barra de error REAL del peor canal variando semilla y orden juntos: 42,3 +/- 4,5 (n=4), 21x mas ancha que la de --seed sola. Cierra el caso cov149 y retira el "techo de robustez" |
 | noche_near_completo.ps1 | 18 ago | 'near' con cobertura completa, 3 replicas (15,9 h, no 11,5: los train de near tardan 240 min). En k=1 queda por debajo de la referencia, pero k=1 no es la metrica que decide |
-| noche_multidead_near.ps1 | 19 ago | near vs referencia en los tres regimenes con cobertura completa. CAE la ventaja de near (equivalente a cluster, <2 sd); lo que queda es que entrenar multi-dead vale +24 pts sobre entrenar con k=1 |
-| noche_mix_estabilidad.ps1 | 17 ago | (pendiente) Si --mix 4 reduce la DISPERSION del peor canal. Se compara la sd contra 4,45, no la media |
+| noche_multidead_near.ps1 | 19 ago | near vs cluster en los tres regimenes con cobertura completa. Cae la ventaja EN LOS TRES: near solo gana en el suyo (+1,99, z=2,9) y empata en los extremos. Lo determinante es entrenar multi-dead: +24 pts sobre k=1 |
+| noche_mix_estabilidad.ps1 | 20 ago | NO estabiliza: sd 3,31 vs 4,45 pero F=1,81 p=0,750, y la media empeora -0,65. El minimo sobre 61 canales es ruidoso de por si |
+
+**Fase experimental cerrada el 20/08.** Cinco noches, ~68 h de computo. Lo que queda es redaccion.
 
 Los logs van a `tandas/logs/` y no se versionan: son reproducibles relanzando el
 script, y las conclusiones estan en la bitacora y en el Excel.
