@@ -48,4 +48,14 @@ memoria/*.lot
 memoria/*.out
 memoria/*.toc
 memoria/*.synctex.gz
+TFM FINAL/*.aux
+TFM FINAL/*.bbl
+TFM FINAL/*.blg
+TFM FINAL/*.fdb_latexmk
+TFM FINAL/*.fls
+TFM FINAL/*.lof
+TFM FINAL/*.lot
+TFM FINAL/*.out
+TFM FINAL/*.toc
+TFM FINAL/*.synctex*
 # el PDF compilado SI se versiona: es lo que se le pasa al director
