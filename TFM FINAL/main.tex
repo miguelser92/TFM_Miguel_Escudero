@@ -289,14 +289,20 @@ prism, 17.6\,mm on a side and 13\,mm thick, laser-etched into 364
 honeycomb-like optical structures that constrain how the scintillation light
 spreads before it reaches the photosensor
 \cite{perez-benito_laser-microstructured_2025}. The back face is optically
-coupled to an array of silicon photomultipliers
-\cite{perez-benito_sipm-based_2019}, whose individual cells convert the light
-into a charge $R_{ch}$ read out per channel \cite{gundacker2020}. The lateral
+coupled to an array of Hamamatsu silicon photomultipliers
+\cite{perez-benito_sipm-based_2019}, each channel comprising 3980 microcells
+with a photon detection efficiency of approximately 35\,\% at the emission
+wavelength of LYSO \cite{jimenez2025}. The readout electronics convert the
+detected light into a digitised charge $R_{ch}$ per channel
+\cite{gundacker2020}, which is the quantity this work operates on. The lateral
 faces carry an absorbing black adhesive that suppresses edge reflections; as a
 side effect, interactions near the perimeter lose a measurable fraction of
 their scintillation light, which is visible later in both the per-channel
 charge and the energy spectrum.
-% TODO(dato): modelo concreto de SiPM y dimensiones de la celda activa.
+
+Both the photosensor array and the readout electronics are prototypes developed
+within the group and still under active development, so we describe them
+functionally rather than by commercial reference.
 
 The array provides 64 readout channels, of which 61 are instrumented in the
 module used here; channels 1, 16 and 18 are inactive and we excluded them
@@ -358,9 +364,14 @@ modules, referred to as \textsc{Good}, and 62 modules with at least one
 suspected faulty channel, referred to as \textsc{Bad}. Each file holds on the
 order of $10^{6}$ events and occupies about 161\,MB, for a total of 25.5\,GB in
 the \textsc{Good} set. Table~\ref{tab:dataset} summarises the statistics.
-% TODO(dato): actividad de la fuente de 22Na, geometria de irradiacion y
-% duracion de cada adquisicion.
-% TODO(dato): modelo de ASIC y valor del umbral de discriminacion aplicado.
+% TODO(dato): actividad de la fuente de 22Na y duracion de cada adquisicion.
+% OJO: NO tomar los 286 kBq del TFM de Jimenez Algarra. Aquel es un banco de haz
+% colimado sobre UN modulo; estos datos son 159 modulos en inundacion. Mismo
+% detector y misma electronica, protocolo de adquisicion distinto.
+%
+% El modelo de SiPM y de ASIC quedan descritos funcionalmente y no por
+% referencia comercial: son prototipos del grupo en desarrollo (decision de
+% Miguel, 21/08), igual que en Jimenez Algarra.
 
 \begin{table}[t]
 \centering

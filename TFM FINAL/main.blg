@@ -20,45 +20,45 @@ Warning--empty year in perez-benito_scintillator_2023
 Warning--empty year in perez-benito_laser-microstructured_2025
 
 Done.
-You've used 18 entries,
+You've used 19 entries,
             4087 wiz_defined-function locations,
-            935 strings with 11314 characters,
-and the built_in function-call counts, 15962 in all, are:
-= -- 1296
-> -- 436
+            941 strings with 11493 characters,
+and the built_in function-call counts, 16338 in all, are:
+= -- 1337
+> -- 440
 < -- 155
-+ -- 240
-- -- 83
-* -- 806
-:= -- 2322
-add.period$ -- 36
-call.type$ -- 18
-change.case$ -- 19
++ -- 242
+- -- 84
+* -- 820
+:= -- 2408
+add.period$ -- 38
+call.type$ -- 19
+change.case$ -- 20
 chr.to.int$ -- 345
-cite$ -- 23
-duplicate$ -- 1111
-empty$ -- 1148
-format.name$ -- 94
-if$ -- 3699
+cite$ -- 24
+duplicate$ -- 1138
+empty$ -- 1176
+format.name$ -- 95
+if$ -- 3781
 int.to.chr$ -- 0
-int.to.str$ -- 18
-missing$ -- 194
-newline$ -- 81
-num.names$ -- 18
-pop$ -- 430
+int.to.str$ -- 19
+missing$ -- 200
+newline$ -- 84
+num.names$ -- 19
+pop$ -- 439
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 2
-skip$ -- 1205
+skip$ -- 1237
 stack$ -- 0
-substring$ -- 840
-swap$ -- 971
+substring$ -- 841
+swap$ -- 990
 text.length$ -- 40
 text.prefix$ -- 0
 top$ -- 5
-type$ -- 18
+type$ -- 19
 warning$ -- 5
-while$ -- 76
-width$ -- 20
-write$ -- 207
+while$ -- 77
+width$ -- 21
+write$ -- 217
 (There were 7 warnings)

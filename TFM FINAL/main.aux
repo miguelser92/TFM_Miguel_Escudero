@@ -37,6 +37,7 @@
 \citation{enlow2023}
 \citation{perez-benito_laser-microstructured_2025}
 \citation{perez-benito_sipm-based_2019}
+\citation{jimenez2025}
 \citation{gundacker2020}
 \@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces \textbf  {TEMPORAL}Three-dimensional model of the quasi-spherical, hexagonal-based PET scanner. Reproduced from \cite  {perez-benito_sipm-based_2019}.}}{2}{figure.caption.2}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
@@ -49,11 +50,11 @@
 \citation{he2022mae}
 \@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Geometry of the detector module, obtained from the physical sensor positions.}}{3}{table.caption.4}\protected@file@percent }
 \newlabel{tab:detector}{{I}{3}{Geometry of the detector module, obtained from the physical sensor positions}{table.caption.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Dataset statistics. Charges are expressed in ADC units.}}{3}{table.caption.5}\protected@file@percent }
-\newlabel{tab:dataset}{{II}{3}{Dataset statistics. Charges are expressed in ADC units}{table.caption.5}{}}
 \newlabel{eq:centroid}{{1}{3}{Detector Module}{equation.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Dataset}{3}{subsection.2.2}\protected@file@percent }
 \newlabel{sec:dataset}{{\mbox  {II-B}}{3}{Dataset}{subsection.2.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Dataset statistics. Charges are expressed in ADC units.}}{3}{table.caption.5}\protected@file@percent }
+\newlabel{tab:dataset}{{II}{3}{Dataset statistics. Charges are expressed in ADC units}{table.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Problem Formulation}{3}{subsection.2.3}\protected@file@percent }
 \newlabel{sec:formulation}{{\mbox  {II-C}}{3}{Problem Formulation}{subsection.2.3}{}}
 \newlabel{eq:mask}{{2}{3}{Problem Formulation}{equation.2}{}}
@@ -94,7 +95,6 @@
 \bibcite{fletcher2008}{4}
 \bibcite{boellaard2015}{5}
 \bibcite{johnson2013}{6}
-\bibcite{spencer2021}{7}
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Recovery at the 90th percentile measured on individual unseen training modules. The spread between detectors (standard deviation of 7.86 percentage points) is an order of magnitude larger than the spread between training runs on a fixed partition.}}{6}{figure.caption.10}\protected@file@percent }
 \newlabel{fig:variabilidad}{{4}{6}{Recovery at the 90th percentile measured on individual unseen training modules. The spread between detectors (standard deviation of 7.86 percentage points) is an order of magnitude larger than the spread between training runs on a fixed partition}{figure.caption.10}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Recovery at the 90th percentile by failure regime, averaged over $k = 1 \dots  4$ suppressed channels. Campaign of 20 seeds and \num {200000} events per file.}}{6}{table.caption.13}\protected@file@percent }
@@ -106,9 +106,8 @@
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Discussion}{6}{section.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {V}Conclusions}{6}{section.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{References}{6}{section*.19}\protected@file@percent }
+\bibcite{spencer2021}{7}
 \bibcite{gonzalezmontoro2022brain}{8}
-\bibcite{moses2011}{9}
-\bibcite{levin1999}{10}
 \@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Per-channel recovery over the 61 active sensors. Left: recovery at the 90th percentile. Right: mean recovery. Channels at the perimeter of the hexagonal array recover less charge than central ones.}}{7}{figure.caption.11}\protected@file@percent }
 \newlabel{fig:mapa}{{5}{7}{Per-channel recovery over the 61 active sensors. Left: recovery at the 90th percentile. Right: mean recovery. Channels at the perimeter of the hexagonal array recover less charge than central ones}{figure.caption.11}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Flood map of a test module. From left to right: reference map with all channels active, map with one channel suppressed, and map recovered by the model.}}{7}{figure.caption.12}\protected@file@percent }
@@ -117,14 +116,17 @@
 \newlabel{fig:regimenes}{{7}{7}{Recovery by failure regime for models trained under each of the three mask-generation strategies}{figure.caption.14}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Recovery as a function of the number of simultaneously suppressed channels, for models trained with a single channel and with one to four.}}{7}{figure.caption.15}\protected@file@percent }
 \newlabel{fig:multidead}{{8}{7}{Recovery as a function of the number of simultaneously suppressed channels, for models trained with a single channel and with one to four}{figure.caption.15}{}}
+\bibcite{moses2011}{9}
+\bibcite{levin1999}{10}
 \bibcite{sanaat2024}{11}
 \bibcite{perez-benito_sipm-based_2019}{12}
 \bibcite{perez-benito_scintillator_2023}{13}
 \bibcite{perez-benito_laser-microstructured_2025}{14}
 \bibcite{gonzalezmontoro2022}{15}
-\bibcite{gundacker2020}{16}
-\bibcite{he2022mae}{17}
-\bibcite{philips2015deadpixel}{18}
+\bibcite{jimenez2025}{16}
+\bibcite{gundacker2020}{17}
+\bibcite{he2022mae}{18}
+\bibcite{philips2015deadpixel}{19}
 \@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Point-spread function of the flood map with all channels active, with one channel suppressed, and after imputation.}}{8}{figure.caption.16}\protected@file@percent }
 \newlabel{fig:resolucion}{{9}{8}{Point-spread function of the flood map with all channels active, with one channel suppressed, and after imputation}{figure.caption.16}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Energy spectrum by crystal zone, comparing the original distribution with the degraded and imputed ones. Zones are defined by concentric hexagonal bands.}}{8}{figure.caption.17}\protected@file@percent }

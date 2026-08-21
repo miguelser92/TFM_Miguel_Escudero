@@ -35,13 +35,18 @@ Consecuencia práctica para el preflight: **la métrica no es FWHM en mm.** Es l
 - La salida del ASIC son cuentas ADC; la relación con fotones detectados es
   `N_fired = N_pixels · (1 − exp(−N_photons · PDE / N_pixels))`
 
-### Datos aún sin confirmar
+### Modelo de SiPM y de ASIC: NO son un dato pendiente
 
-- **modelo o part number del SiPM** — Jiménez Algarra dice sólo «los fotomultiplicadores
-  Hamamatsu», sin referencia
-- **modelo de ASIC** y valor del umbral de discriminación por canal
-- **actividad de la fuente, geometría de irradiación y duración** de las adquisiciones
-  de *este* conjunto de datos
+**Resuelto el 21/08 (decisión de Miguel).** El fotosensor y la electrónica de lectura son
+**prototipos del grupo, en desarrollo activo** —Lidia es la ingeniera electrónica que
+trabaja en ellos—, así que no existe referencia comercial que citar. Se describen
+**funcionalmente** (fabricante, microceldas, PDE), igual que en Jiménez Algarra. **No
+volver a pedir el part number: no procede.**
+
+### Lo que sí sigue pendiente
+
+- **actividad de la fuente de ²²Na y duración** de las adquisiciones de *este* conjunto de
+  datos (ver el aviso de abajo: los 286 kBq son de otro montaje)
 
 ### ⚠️ NO tomar del TFM de Jiménez Algarra: es otro experimento
 
