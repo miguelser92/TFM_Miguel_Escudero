@@ -358,16 +358,17 @@ the image in which the 364 structures must remain separable.
 \subsection{Dataset}
 \label{sec:dataset}
 
-We used acquisitions recorded with a $^{22}$Na source, one binary file per
-physical detector module. The collection comprises 159 nominally healthy
+We used acquisitions recorded with a $^{22}$Na source under flood irradiation,
+one binary file per physical detector module. The collection comprises 159 nominally healthy
 modules, referred to as \textsc{Good}, and 62 modules with at least one
 suspected faulty channel, referred to as \textsc{Bad}. Each file holds on the
 order of $10^{6}$ events and occupies about 161\,MB, for a total of 25.5\,GB in
 the \textsc{Good} set. Table~\ref{tab:dataset} summarises the statistics.
-% TODO(dato): actividad de la fuente de 22Na y duracion de cada adquisicion.
-% OJO: NO tomar los 286 kBq del TFM de Jimenez Algarra. Aquel es un banco de haz
-% colimado sobre UN modulo; estos datos son 159 modulos en inundacion. Mismo
-% detector y misma electronica, protocolo de adquisicion distinto.
+% NOTA: la duracion de cada adquisicion no consta y se omite deliberadamente
+% (decision de Miguel, 21/08): mejor omitirla que tomarla de otro montaje.
+% Verificado en los ficheros que la irradiacion es en INUNDACION y no el barrido
+% colimado de Jimenez Algarra: al partir un fichero en 61 bloques temporales el
+% centroide medio no se mueve (sd 0,05 mm) y cada bloque cubre todo el cristal.
 %
 % El modelo de SiPM y de ASIC quedan descritos funcionalmente y no por
 % referencia comercial: son prototipos del grupo en desarrollo (decision de

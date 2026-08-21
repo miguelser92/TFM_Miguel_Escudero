@@ -66,19 +66,19 @@
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {II-D}3}HexGNN}{4}{subsubsection.2.4.3}\protected@file@percent }
 \newlabel{eq:hexconv}{{4}{4}{HexGNN}{equation.4}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {II-D}4}Architectural variants}{4}{subsubsection.2.4.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Training configuration of the reference model.}}{4}{table.caption.6}\protected@file@percent }
+\newlabel{tab:hyperparams}{{III}{4}{Training configuration of the reference model}{table.caption.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-E}}Loss Function}{4}{subsection.2.5}\protected@file@percent }
 \newlabel{sec:loss}{{\mbox  {II-E}}{4}{Loss Function}{subsection.2.5}{}}
 \newlabel{eq:loss}{{5}{4}{Loss Function}{equation.5}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Training configuration of the reference model.}}{4}{table.caption.6}\protected@file@percent }
-\newlabel{tab:hyperparams}{{III}{4}{Training configuration of the reference model}{table.caption.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-F}}Training Setup}{4}{subsection.2.6}\protected@file@percent }
 \newlabel{sec:training}{{\mbox  {II-F}}{4}{Training Setup}{subsection.2.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-G}}Evaluation Metrics}{4}{subsection.2.7}\protected@file@percent }
 \newlabel{sec:metrics}{{\mbox  {II-G}}{4}{Evaluation Metrics}{subsection.2.7}{}}
-\newlabel{eq:recovery}{{6}{4}{Evaluation Metrics}{equation.6}{}}
 \citation{philips2015deadpixel}
 \@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Architecture comparison. Common campaign of \num {600000} events per test file. Recovery in per cent, MAE in normalised units.}}{5}{table.caption.7}\protected@file@percent }
 \newlabel{tab:architectures}{{IV}{5}{Architecture comparison. Common campaign of \num {600000} events per test file. Recovery in per cent, MAE in normalised units}{table.caption.7}{}}
+\newlabel{eq:recovery}{{6}{5}{Evaluation Metrics}{equation.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {III}Results}{5}{section.3}\protected@file@percent }
 \newlabel{sec:results}{{III}{5}{Results}{section.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Value of the Geometric Prior}{5}{subsection.3.1}\protected@file@percent }
@@ -91,10 +91,6 @@
 \bibdata{referencias}
 \bibcite{cherry2012}{1}
 \bibcite{rong2023}{2}
-\bibcite{vaquero2015}{3}
-\bibcite{fletcher2008}{4}
-\bibcite{boellaard2015}{5}
-\bibcite{johnson2013}{6}
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Recovery at the 90th percentile measured on individual unseen training modules. The spread between detectors (standard deviation of 7.86 percentage points) is an order of magnitude larger than the spread between training runs on a fixed partition.}}{6}{figure.caption.10}\protected@file@percent }
 \newlabel{fig:variabilidad}{{4}{6}{Recovery at the 90th percentile measured on individual unseen training modules. The spread between detectors (standard deviation of 7.86 percentage points) is an order of magnitude larger than the spread between training runs on a fixed partition}{figure.caption.10}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Recovery at the 90th percentile by failure regime, averaged over $k = 1 \dots  4$ suppressed channels. Campaign of 20 seeds and \num {200000} events per file.}}{6}{table.caption.13}\protected@file@percent }
@@ -105,17 +101,21 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Application to Faulty Modules}{6}{subsection.3.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Discussion}{6}{section.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {V}Conclusions}{6}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{6}{section*.19}\protected@file@percent }
-\bibcite{spencer2021}{7}
-\bibcite{gonzalezmontoro2022brain}{8}
+\bibcite{vaquero2015}{3}
+\bibcite{fletcher2008}{4}
+\bibcite{boellaard2015}{5}
 \@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Per-channel recovery over the 61 active sensors. Left: recovery at the 90th percentile. Right: mean recovery. Channels at the perimeter of the hexagonal array recover less charge than central ones.}}{7}{figure.caption.11}\protected@file@percent }
 \newlabel{fig:mapa}{{5}{7}{Per-channel recovery over the 61 active sensors. Left: recovery at the 90th percentile. Right: mean recovery. Channels at the perimeter of the hexagonal array recover less charge than central ones}{figure.caption.11}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Flood map of a test module. From left to right: reference map with all channels active, map with one channel suppressed, and map recovered by the model.}}{7}{figure.caption.12}\protected@file@percent }
 \newlabel{fig:floodmap}{{6}{7}{Flood map of a test module. From left to right: reference map with all channels active, map with one channel suppressed, and map recovered by the model}{figure.caption.12}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Recovery by failure regime for models trained under each of the three mask-generation strategies.}}{7}{figure.caption.14}\protected@file@percent }
 \newlabel{fig:regimenes}{{7}{7}{Recovery by failure regime for models trained under each of the three mask-generation strategies}{figure.caption.14}{}}
+\@writefile{toc}{\contentsline {section}{References}{7}{section*.19}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Recovery as a function of the number of simultaneously suppressed channels, for models trained with a single channel and with one to four.}}{7}{figure.caption.15}\protected@file@percent }
 \newlabel{fig:multidead}{{8}{7}{Recovery as a function of the number of simultaneously suppressed channels, for models trained with a single channel and with one to four}{figure.caption.15}{}}
+\bibcite{johnson2013}{6}
+\bibcite{spencer2021}{7}
+\bibcite{gonzalezmontoro2022brain}{8}
 \bibcite{moses2011}{9}
 \bibcite{levin1999}{10}
 \bibcite{sanaat2024}{11}

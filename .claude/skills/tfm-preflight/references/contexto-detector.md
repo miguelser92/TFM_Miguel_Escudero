@@ -48,16 +48,37 @@ volver a pedir el part number: no procede.**
 - **actividad de la fuente de ²²Na y duración** de las adquisiciones de *este* conjunto de
   datos (ver el aviso de abajo: los 286 kBq son de otro montaje)
 
-### ⚠️ NO tomar del TFM de Jiménez Algarra: es otro experimento
+### Geometría de irradiación: INUNDACIÓN, no barrido colimado (medido el 21/08)
 
-Aquel trabajo da actividad de **286 kBq**, colimador de **1,2 mm** y **10 min por
-posición**. Son de un **banco de haz colimado** sobre **un** módulo, apuntando a los
-centros de los 61 SiPM, con ~10.192 eventos por posición.
+Miguel indicó que los datos reales de Jiménez Algarra son los suyos. Comparten fuente,
+detector y electrónica, pero **la geometría de irradiación no es la misma**, y eso se
+comprueba en los propios ficheros.
 
-Los datos de este TFM son **159 módulos distintos, ~1,1 M de eventos cada uno, en
-inundación**: adquisiciones de calibración de producción. **Mismo detector y misma
-electrónica, protocolo de adquisición distinto.** Copiar esas cifras sería describir el
-montaje de otra persona.
+**El test** (decisivo, 30 s). Aquel trabajo describe un haz colimado de 1,2 mm desplazado
+**cada 10 minutos** sobre los 61 centros de SiPM. Si eso fuera cierto para estos ficheros,
+habría **estructura temporal**: al partir el fichero en 61 bloques consecutivos, el
+centroide medio de cada bloque caería sobre un sensor distinto. Medido en `datas002`:
+
+| | |
+|---|---|
+| Centro de cada bloque | siempre (≈0, −0,4) mm, **sd 0,05 mm** |
+| Dispersión interna de cada bloque | **9,86 mm** |
+
+Los centros **no se mueven** y cada bloque cubre el cristal entero ⇒ **inundación**.
+
+```python
+x, y = compute_xy(X, x_sipm, y_sipm)          # X = fichero completo
+n, B = len(X), 61
+cx = [x[i*(n//B):(i+1)*(n//B)].mean() for i in range(B)]
+# si sd(cx) < 0,5 mm no hay barrido posicional
+```
+
+**Por tanto NO escribir** «collimated 1.2 mm beam displaced every 10 minutes over 61
+positions»: es falso para estos datos y se refuta con el test de arriba.
+
+**Sí se puede escribir:** fuente de ²²Na, irradiación en inundación, un fichero por módulo,
+~10⁶ eventos por módulo. La **duración de la adquisición no se conoce y no hace falta**
+(decisión de Miguel, 21/08): mejor omitir un dato que tomarlo de otro montaje.
 
 Del mismo modo, su **umbral analógico de 330 keV** es un corte por energía *del evento*
 que aplican para descartar dispersados, no el umbral por canal que hace que un SiPM
