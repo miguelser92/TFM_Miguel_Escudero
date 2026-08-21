@@ -10,7 +10,7 @@ Consecuencia práctica para el preflight: **la métrica no es FWHM en mm.** Es l
 
 ## Detector (medido de los propios datos, verificado en la auditoría del 05/08)
 
-- Cristal **monolítico de LYSO**, geometría **hexagonal**.
+- Cristal **monolítico de LYSO**, geometría **hexagonal**, lado 17,6 mm y espesor 13 mm, grabado con láser en 364 estructuras.
 - **64 canales de SiPM, de los cuales 61 activos.** Los canales `1`, `16` y `18` están inactivos y se excluyen en todo el pipeline. Una dimensión que no sea 61 es señal de alarma.
 - **Pitch** entre sensores: **3,75 mm**.
 - Extensión: **X ∈ [−13, 13] mm, Y ∈ [−15, 15] mm**. Es decir **apotema 13, circunradio 15**; el cociente 13/15 = 0,867 = cos 30°, que confirma hexágono regular con vértices arriba y abajo y normales a 0°/60°/120°.
@@ -18,16 +18,22 @@ Consecuencia práctica para el preflight: **la métrica no es FWHM en mm.** Es l
 
 **⚠️ DATOS REALES DE LABORATORIO, no simulación.** Ficheros `.dat` de adquisición con fuente de **²²Na**, un fichero por módulo detector físico. Esto invalida varias comprobaciones típicas de simulación: no hay "posición de fuente" por la que particionar, no hay ground truth de DOI, y la variabilidad entre módulos es real y grande (**sd de 7,9 puntos de recuperación entre detectores**, frente a 0,1–0,2 entre entrenamientos del mismo protocolo).
 
+### El cristal (confirmado el 21/08)
+
+- **Lado del hexágono: 17,6 mm. Espesor: 13 mm.**
+- Grabado con láser en **364 estructuras** tipo panal, que limitan cómo se reparte la luz antes de llegar al fotosensor.
+
+> **Corrección de una versión anterior de este fichero.** Escribí que el lado de 17,6 mm «no cuadraba con los datos» porque el circunradio que yo había medido era de 15 mm. **Estaba comparando magnitudes distintas**: los 15 mm son el circunradio de los *centros de los SiPM*, y los 17,6 mm el lado del *cristal*. Los sensores no llegan al borde del cristal, así que las dos cifras son compatibles y ambas son correctas. Miguel lo confirmó.
+>
+> Lección para el registro: antes de declarar que dos cifras se contradicen, comprobar que miden lo mismo.
+
 ### Datos aún sin confirmar
 
-Pendientes de Lidia / Víctor, y **bloquean la versión final de Materiales y Métodos**. No inventarlos ni tomarlos de otro detector:
+Pendientes de Lidia / Víctor. No inventarlos ni tomarlos de otro montaje:
 
-- modelo concreto de SiPM y dimensiones activas
-- **espesor del cristal LYSO**
+- modelo concreto de SiPM y dimensiones de la celda activa
 - actividad de la fuente de ²²Na, geometría de irradiación y duración de las adquisiciones
 - modelo de ASIC y valor del umbral de discriminación
-
-> Una versión anterior de este fichero afirmaba «lado 17,6 mm, espesor 13 mm, simulación GATE». **El lado no cuadra con los datos** (el circunradio medido es 15 mm, no 17,6) y los datos no son simulados. Esas cifras parecen del detector simulado del grupo, no de este. El espesor de 13 mm podría ser correcto pero **hay que confirmarlo antes de escribirlo en la memoria**.
 
 ## Conjunto de datos
 
