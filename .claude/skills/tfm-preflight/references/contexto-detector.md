@@ -27,13 +27,43 @@ Consecuencia práctica para el preflight: **la métrica no es FWHM en mm.** Es l
 >
 > Lección para el registro: antes de declarar que dos cifras se contradicen, comprobar que miden lo mismo.
 
+### El fotosensor (del TFM de Jiménez Algarra, 21/08)
+
+- Fabricante: **Hamamatsu**
+- **3.980 microceldas** por celda SiPM
+- PDE ≈ **35 %** a la longitud de onda de emisión del LYSO
+- La salida del ASIC son cuentas ADC; la relación con fotones detectados es
+  `N_fired = N_pixels · (1 − exp(−N_photons · PDE / N_pixels))`
+
 ### Datos aún sin confirmar
 
-Pendientes de Lidia / Víctor. No inventarlos ni tomarlos de otro montaje:
+- **modelo o part number del SiPM** — Jiménez Algarra dice sólo «los fotomultiplicadores
+  Hamamatsu», sin referencia
+- **modelo de ASIC** y valor del umbral de discriminación por canal
+- **actividad de la fuente, geometría de irradiación y duración** de las adquisiciones
+  de *este* conjunto de datos
 
-- modelo concreto de SiPM y dimensiones de la celda activa
-- actividad de la fuente de ²²Na, geometría de irradiación y duración de las adquisiciones
-- modelo de ASIC y valor del umbral de discriminación
+### ⚠️ NO tomar del TFM de Jiménez Algarra: es otro experimento
+
+Aquel trabajo da actividad de **286 kBq**, colimador de **1,2 mm** y **10 min por
+posición**. Son de un **banco de haz colimado** sobre **un** módulo, apuntando a los
+centros de los 61 SiPM, con ~10.192 eventos por posición.
+
+Los datos de este TFM son **159 módulos distintos, ~1,1 M de eventos cada uno, en
+inundación**: adquisiciones de calibración de producción. **Mismo detector y misma
+electrónica, protocolo de adquisición distinto.** Copiar esas cifras sería describir el
+montaje de otra persona.
+
+Del mismo modo, su **umbral analógico de 330 keV** es un corte por energía *del evento*
+que aplican para descartar dispersados, no el umbral por canal que hace que un SiPM
+registre cero en nuestros ficheros. No confundirlos.
+
+### Contexto de resultados de aquel trabajo (para la Discusión, no para Métodos)
+
+FWHM ≈ **1,52 mm en simulación GATE** frente a ≈ **4 mm en datos reales**, con haces de
+1,6 y 1,2 mm de diámetro respectivamente. La brecha simulación→real es en sí misma un
+dato citable. Su métrica es FWHM de posicionamiento; la nuestra es recuperación de
+posición tras imputar. **No son comparables directamente.**
 
 ## Conjunto de datos
 
