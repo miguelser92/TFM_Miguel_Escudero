@@ -58,4 +58,5 @@ TFM FINAL/*.lot
 TFM FINAL/*.out
 TFM FINAL/*.toc
 TFM FINAL/*.synctex*
+TFM FINAL/.build/
 # el PDF compilado SI se versiona: es lo que se le pasa al director
