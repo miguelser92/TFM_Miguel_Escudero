@@ -27,6 +27,11 @@
          separate-uncertainty=true, per-mode=symbol}
 \usepackage{algorithm,algpseudocode}
 
+% --- Numeracion de secciones: 1, 1.1, 1.1.1 en vez de I, A, 1) -------
+\renewcommand{\thesection}{\arabic{section}}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
 % --- Citas IEEE + enlaces (hyperref SIEMPRE el ultimo) --------------
 \usepackage{cite}
 \usepackage[hidelinks]{hyperref}
@@ -420,220 +425,139 @@ the lost sensor is left without healthy neighbours to draw on.
 \section{Materials and Methods}
 % ---------------------------------------------------------------------
 
-\subsection{Detector Module}
+\subsection{Detector and Data}
 \label{sec:detector}
 
-Every measurement in this work comes from a single detector module of the
-scanner described above. The scintillator is a monolithic LYSO hexagonal
-prism, 17.6\,mm on a side and 13\,mm thick, laser-etched into 364
-honeycomb-like optical structures that constrain how the scintillation light
-spreads before it reaches the photosensor
-\cite{perez-benito_laser-microstructured_2025}. The back face is optically
-coupled to an array of Hamamatsu silicon photomultipliers
-\cite{perez-benito_sipm-based_2019}, each channel comprising 3980 microcells
-with a photon detection efficiency of approximately 35\,\% at the emission
-wavelength of LYSO \cite{jimenez2025}. The readout electronics convert the
-detected light into a digitised charge $R_{ch}$ per channel
-\cite{gundacker2020}, which is the quantity this work operates on. The lateral
-faces carry an absorbing black adhesive that suppresses edge reflections; as a
-side effect, interactions near the perimeter lose a measurable fraction of
-their scintillation light, which is visible later in both the per-channel
-charge and the energy spectrum.
-
-Both the photosensor array and the readout electronics are prototypes developed
-within the group and still under active development, so we describe them
-functionally rather than by commercial reference.
-
-The array provides 64 readout channels, of which 61 are instrumented in the
-module used here; channels 1, 16 and 18 are inactive and we excluded them
-throughout. Table~\ref{tab:detector} lists the geometry we derived directly
-from the physical sensor positions. The 61 active centres tile a hexagonal
-lattice of side 5 with a pitch of 3.75\,mm, spanning
-$[-13.0, 13.0]$\,mm in $x$ and $[-15.0, 15.0]$\,mm in $y$. The ratio between
-these two half-extents, $13/15 = 0.867$, matches $\cos 30^{\circ}$ to three
-decimal places, confirming a regular hexagonal envelope with vertices along
-$y$. The sensor centres therefore do not reach the crystal boundary, which is
-consistent with the larger crystal side quoted above.
-
-\begin{table}[t]
-\centering
-\caption{Geometry of the detector module, obtained from the physical sensor
-positions.}
-\label{tab:detector}
-\begin{tabular}{@{}lc@{}}
-\toprule
-\textbf{Property} & \textbf{Value} \\
-\midrule
-Crystal                       & Monolithic LYSO, hexagonal \\
-Crystal side / thickness      & 17.6\,mm / 13\,mm \\
-Etched optical structures     & 364 \\
-Total readout channels        & 64 \\
-Instrumented channels         & 61 \\
-Inactive channels ($\mathrm{Ich}$) & 1, 16, 18 \\
-Sensor pitch                  & 3.75\,mm \\
-Extent in $x$                 & $[-13.0,\ 13.0]$\,mm \\
-Extent in $y$                 & $[-15.0,\ 15.0]$\,mm \\
-Maximum radius from centre    & 15.01\,mm \\
-Lattice                       & Hexagonal, side 5 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-A 511\,keV gamma interacting in the crystal releases on the order of
-$10^{4}$ optical photons, which distribute over many channels at once. We
-estimated the interaction position with an Anger-type centroid weighted by the
-squared charge,
-%
-\begin{equation}
-\hat{x} = \frac{\sum_{c} R_{ch,c}^{2}\, x_{c}}{\sum_{c} R_{ch,c}^{2}},
-\qquad
-\hat{y} = \frac{\sum_{c} R_{ch,c}^{2}\, y_{c}}{\sum_{c} R_{ch,c}^{2}},
-\label{eq:centroid}
-\end{equation}
-%
-where $(x_{c}, y_{c})$ are the sensor coordinates. The two-dimensional
-histogram of $(\hat{x}, \hat{y})$ over many events is the flood map, and it is
-the image in which the 364 structures must remain separable.
-
-\subsection{Dataset}
-\label{sec:dataset}
+Every measurement reported here comes from detector modules of the scanner
+described in Section~1. Each module is built around a monolithic LYSO hexagonal
+prism, 17.6\,mm on a side and 13\,mm thick, laser-etched into 364 optical
+structures that constrain how the scintillation light spreads before reaching
+the photosensor \cite{perez-benito_laser-microstructured_2025}. An array of
+silicon photomultipliers is optically coupled to its rear face
+\cite{perez-benito_sipm-based_2019}. The array provides 64 readout channels, of
+which 61 are instrumented; the remaining three are inactive and we excluded
+them throughout. The active sensors tile a hexagonal lattice with a pitch of
+3.75\,mm and span 26\,mm across, so that they do not reach the crystal
+boundary. The lateral faces of the crystal carry an absorbing black adhesive
+that suppresses edge reflections. This has a consequence that recurs
+throughout our results: interactions near the perimeter lose a measurable
+fraction of their light, which shifts both the charge recorded by the outermost
+channels and the position of the energy photopeak in those regions.
 
 We used acquisitions recorded with a $^{22}$Na source under flood irradiation,
-one binary file per physical detector module. The collection comprises 159 nominally healthy
-modules, referred to as \textsc{Good}, and 62 modules with at least one
-suspected faulty channel, referred to as \textsc{Bad}. Each file holds on the
-order of $10^{6}$ events and occupies about 161\,MB, for a total of 25.5\,GB in
-the \textsc{Good} set. Table~\ref{tab:dataset} summarises the statistics.
-% NOTA: la duracion de cada adquisicion no consta y se omite deliberadamente
-% (decision de Miguel, 21/08): mejor omitirla que tomarla de otro montaje.
-% Verificado en los ficheros que la irradiacion es en INUNDACION y no el barrido
-% colimado de Jimenez Algarra: al partir un fichero en 61 bloques temporales el
-% centroide medio no se mueve (sd 0,05 mm) y cada bloque cubre todo el cristal.
-%
-% El modelo de SiPM y de ASIC quedan descritos funcionalmente y no por
-% referencia comercial: son prototipos del grupo en desarrollo (decision de
-% Miguel, 21/08), igual que en Jimenez Algarra.
+one file per physical module, comprising 159 healthy modules and 62 modules
+with at least one suspected faulty channel. Each file holds on the order of
+$10^6$ events. An event activates 17 channels on average, ranging from a single
+channel to 54, since a channel only produces an output once it exceeds the
+threshold set in the readout electronics. We applied neither energy calibration
+nor an energy window. Both would require a per-channel calibration that is not
+available for this set of modules, and the metric we use to assess spectral
+fidelity is constructed so that their absence cancels, as
+Section~2.6 explains.
 
-\begin{table}[t]
-\centering
-\caption{Dataset statistics. Charges are expressed in ADC units.}
-\label{tab:dataset}
-\begin{tabular}{@{}lc@{}}
-\toprule
-\textbf{Property} & \textbf{Value} \\
-\midrule
-\textsc{Good} modules              & 159 \\
-\textsc{Bad} modules               & 62 \\
-Mean file size                     & 161\,MB \\
-Total volume (\textsc{Good})       & 25.5\,GB \\
-Events per file                    & $\sim 10^{6}$ \\
-Events in the test partition       & \num{5476642} \\
-Active channels per event (mean)   & 17.0 \\
-Active channels per event (range)  & 1--54 \\
-Total charge $R_T$ (mean)          & 31.9 \\
-Total charge $R_T$ (median)        & 26.8 \\
-\bottomrule
-\end{tabular}
-\end{table}
+We split the healthy modules by file rather than by event, with a fixed seed:
+149 for training, 5 for validation and 5 held out for testing. The distinction
+matters more than it might appear. Each file is a different physical detector,
+with its own gain, its own optical coupling and its own defects, so splitting
+by file measures generalisation to hardware the model has never seen. Splitting
+by event would let the model learn the idiosyncrasies of a detector and then be
+tested on that same detector, which is a considerably easier problem and not
+the one that arises in practice. The test partition was reserved before any
+training and used neither for fitting nor for model selection.
 
-The gap between the mean and the median of $R_T$ reflects the asymmetry of the
-energy distribution, with a high-energy tail over a dominant Compton
-background. We applied no energy calibration and no energy window, a choice we
-return to in Section~\ref{sec:metrics}, where the spectral metric is
-constructed so that this omission cancels.
+\subsection{Preprocessing and Sample Generation}
+\label{sec:preproc}
 
-We split the \textsc{Good} set \emph{by file} rather than by event, using a
-fixed seed of 42: 149 modules for training, 5 for validation and 5 held out for
-testing (\texttt{datas057}, \texttt{116}, \texttt{126}, \texttt{202} and
-\texttt{214}). The distinction matters. Each file is a different physical
-detector, so splitting by file measures generalisation to hardware the model
-has never seen, whereas splitting by event would measure a considerably easier
-problem. The test partition was reserved from the outset and used neither for
-training nor for model selection.
+The raw quantity is a vector $\mathbf{r} \in \mathbb{R}^{61}$ holding the
+digitised charge of each channel for one event. We applied two operations
+before it reaches the network. Occasional negative values, produced by baseline
+subtraction in the electronics, were clipped to zero, since a negative charge
+has no physical meaning and would distort the centroid. Events in which no
+channel exceeded the threshold carry no information and were discarded.
 
-\subsection{Problem Formulation}
-\label{sec:formulation}
+We then simulated a faulty channel by forcing a subset $\mathcal{D}$ of the
+entries to zero and asking the model to recover the original vector from what
+remained. The network additionally receives a binary mask indicating which
+entries were suppressed, so that a channel switched off is distinguishable from
+a channel that legitimately recorded no signal. This is the masked autoencoder
+setting \cite{he2022mae} applied to detector channels instead of image patches,
+and it makes the supervision self-generated: the target is the original vector,
+so no module with a genuinely dead sensor is needed for training. We drew a
+fresh $\mathcal{D}$ for every sample, so a given event is never seen twice with
+the same failure pattern.
 
-Let $\mathbf{r} \in \mathbb{R}^{61}$ be the vector of channel charges for one
-event. We modelled a faulty channel by forcing a subset
-$\mathcal{D} \subset \{1, \dots, 61\}$ of entries to zero, and asked the model
-to recover the original vector from what remains. The masked input is
-%
-\begin{equation}
-\tilde{r}_{c} =
-\begin{cases}
-0 & \text{if } c \in \mathcal{D} \\
-r_{c} & \text{otherwise,}
-\end{cases}
-\label{eq:mask}
-\end{equation}
-%
-and the network additionally receives the binary mask
-$m_{c} = \mathbb{1}[c \notin \mathcal{D}]$, so that a channel switched off is
-distinguishable from a channel that legitimately recorded no signal. Input and
-target share the same normalising factor, the maximum of the masked vector:
+Normalisation, however, deserves a comment, because it constrains the
+architecture. We scaled each event by the maximum of its own masked vector,
 %
 \begin{equation}
 \mathbf{x} = \frac{\tilde{\mathbf{r}}}{\max_{c} \tilde{r}_{c}},
 \qquad
-\mathbf{y} = \frac{\mathbf{r}}{\max_{c} \tilde{r}_{c}}.
+\mathbf{y} = \frac{\mathbf{r}}{\max_{c} \tilde{r}_{c}},
 \label{eq:norm}
 \end{equation}
 %
-Because the normaliser is computed \emph{after} masking, the target of a
-suppressed channel may exceed unity when that channel was the brightest of the
-event. The network output is therefore linear, with no sigmoid or clamp. We
-clipped negative charges to zero before masking, and we normalised per event
-rather than per dataset: for position estimation what matters is how the light
-distributes, not how much light there was in total.
+where $\tilde{\mathbf{r}}$ is the masked vector and $\mathbf{y}$ the target.
+Two choices are embedded here. Scaling per event rather than per dataset
+follows from the physics: for position estimation what matters is how the light
+distributes across the array, not how much light the interaction released.
+Computing the factor \emph{after} masking means that the target of a suppressed
+channel exceeds unity whenever that channel was the brightest of the event.
+The output layer is therefore linear, with no sigmoid or clamp, because
+bounding it would make the brightest failures unrecoverable by construction.
 
-This construction is a masked autoencoder \cite{he2022mae} applied to detector
-channels instead of image patches, and it makes the task self-supervised. The
-ground truth is the original 61-channel vector, so no module with a genuinely
-dead sensor is needed for training, and the supervision requires no
-calibration. We generated the masks on the fly, drawing a fresh $\mathcal{D}$
-for every sample, so a given event is never seen twice with the same failure
-pattern.
+One further choice concerns which channel to suppress. Roughly three quarters
+of the channels in any given event are below threshold, so drawing the seed
+uniformly would produce a training set in which most samples require no
+correction at all, and the model would reasonably learn to predict zero. We
+therefore balanced the draw: half of the samples suppress a channel that
+carried signal and half suppress a channel already at zero.
 
-Two aspects of the sampling deserve mention. The first is class balance: half
-of the samples suppress a channel that did carry signal and half suppress a
-channel already at zero. Without this balance roughly three quarters of the
-examples would require no correction at all, and the model would reasonably
-learn to do nothing.
+\subsection{Failure Regimes}
+\label{sec:regimes}
 
-The second is the spatial pattern of $\mathcal{D}$, which we controlled through
-three regimes. In \emph{cluster} the $k$ suppressed channels are contiguous; in
-\emph{scatter} they are drawn uniformly across the detector; and in \emph{near}
-they lie within two hops of the seed without being required to touch. The
-motivation for the third regime is empirical. When we labelled the \textsc{Bad}
-modules, the failures we found most often were neither compact groups nor
-sensors scattered across the whole array, but two or three sensors separated by
-one or two positions.
+A single dead channel is the simplest fault, but not the only one. When we
+inspected the flood maps of the 62 defective modules, we found three recurring
+patterns. What matters is not so much how many sensors fail as how they are
+arranged: one whose neighbours are all healthy can be reconstructed from them,
+whereas one surrounded by other dead sensors cannot.
 
-\subsection{Architectures}
-\label{sec:architectures}
+We reproduced those patterns with three mask-generation strategies, illustrated
+in Fig.~\ref{fig:regimenes-diagrama}. In the \emph{cluster} regime the $k$
+suppressed channels grow outward from the seed so that they remain contiguous,
+which is the least favourable case: an entire region of the array disappears
+and the affected sensors are left without healthy neighbours to draw on. In the
+\emph{scatter} regime they are drawn uniformly across the array, so each
+failure is effectively isolated. The \emph{near} regime sits between the two:
+the $k$ channels lie within two hops of the seed without being required to
+touch. That intermediate case is the one we observed most often in real faulty
+modules, typically two or three sensors separated by one or two positions, and
+it is the reason we introduced it rather than settling for the two extremes.
 
-We evaluated four families of models, all solving the same $61 \rightarrow 61$
-regression.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{regimenes_diagrama}
+\caption{The three failure regimes used to generate the training masks, shown
+on the 61-sensor array for $k=3$. Suppressed sensors are marked in red and the
+white dot indicates the seed from which the pattern grows. Cluster forces the
+failures to be contiguous, scatter distributes them across the array, and near
+places them within two hops of the seed without requiring contact.}
+\label{fig:regimenes-diagrama}
+\end{figure}
 
-\subsubsection{Classical baselines}
-Two methods without learned parameters establish what the geometry alone
-provides: the mean of the neighbouring channels, and a linear regression fitted
-per channel on the remaining 60. Both exclude the target channel from their
-inputs, and we fitted the regression coefficients on training modules only.
+\subsection{Network Architecture}
+\label{sec:arch}
 
-\subsubsection{Baselines without a geometric prior}
-A deep multilayer perceptron (\textsc{DeepMLP}) and a residual MLP with
-attention (\textsc{ResidualMLP}) take the 61 channels as a flat vector. They
-have access to the same information but no notion of which sensors are adjacent,
-which isolates the contribution of the geometric prior.
+The geometry of the array suggests how to model the problem. A dense network
+receiving the 61 charges as a flat vector would have to learn which sensors are
+adjacent, something already known from the physical layout. We therefore
+represented the detector as a graph whose nodes are the 61 active sensors and
+whose edges join physically adjacent ones, and propagated information along
+those edges \cite{gilmer2017mpnn, hamilton2017graphsage}. The resulting
+adjacency has 312 directed edges, with 37 nodes of degree six, 18 of degree
+four and 6 of degree three, and it is fully symmetric.
 
-\subsubsection{HexGNN}
-Our reference model treats the detector as a graph whose 61 nodes are the
-active sensors and whose edges join physically adjacent ones. The adjacency
-follows the hexagonal lattice: 312 directed edges, with 37 nodes of degree 6,
-18 of degree 4 and 6 of degree 3, and full symmetry. Each layer updates a node
-from its own state and the mean of its neighbours,
+Each layer of our model, which we refer to as HexGNN, updates a node from its
+own state and the mean of its neighbours,
 %
 \begin{equation}
 h_{c}^{(l+1)} = \sigma\!\left( W_{s} h_{c}^{(l)}
@@ -642,93 +566,113 @@ h_{c}^{(l+1)} = \sigma\!\left( W_{s} h_{c}^{(l)}
 \label{eq:hexconv}
 \end{equation}
 %
-with $\sigma$ a GELU nonlinearity. The aggregation is isotropic: all neighbours
-of a node share the weight matrix $W_{n}$. The reference configuration
-(\textsc{HexGNN-s}) uses a hidden width of 48 and four blocks, for
-\num{38305} trainable parameters. We also trained wider variants,
-\textsc{HexGNN-m} and \textsc{HexGNN-l}, to test whether capacity was the
-binding constraint.
+where $\mathcal{N}(c)$ are the neighbours of sensor $c$ and $\sigma$ is a GELU
+nonlinearity \cite{hendrycks2016gelu}. The aggregation is isotropic: every
+neighbour of a node shares the weight matrix $W_{n}$, so the layer encodes
+adjacency but not direction. Batch normalisation \cite{ioffe2015batchnorm} is
+applied between blocks. Our reference configuration uses a hidden width of 48
+and four blocks, for \num{38305} trainable parameters.
 
-\subsubsection{Architectural variants}
-On top of the reference we explored nine modifications, each targeting a
-specific hypothesis: metric edge features (relative distances and vectors),
-anisotropic hexagonal convolution with one weight per direction, global
-attention and a graph transformer, an encoder--decoder with a latent
-bottleneck, multi-statistic aggregation, per-channel equalisation,
-heteroscedastic prediction of mean and variance, and averaging ensembles.
+We compared this model against three groups of alternatives. As classical
+baselines without learned parameters we used the mean of the neighbouring
+channels and a per-channel linear regression on the remaining 60, both fitted
+on training modules only and both excluding the target channel from their
+inputs. As neural baselines without a geometric prior we trained a deep multilayer
+perceptron and a residual multilayer perceptron with channel attention. Both
+receive the same information but no notion of adjacency, which isolates the
+contribution of the prior from that of raw capacity.
 
-\subsection{Loss Function}
-\label{sec:loss}
+We also evaluated four alternative graph formulations, to test whether the
+isotropic mean is what limits performance: attention over neighbours
+\cite{velickovic2018gat}, multiple aggregation statistics combined with degree
+scalers \cite{corso2020pna}, an encoder--decoder with graph pooling
+\cite{gao2019graphunet}, and a graph transformer with global attention
+\cite{ying2021graphormer}. We also tested metric edge features, anisotropic
+hexagonal convolution with one weight per direction, per-channel equalisation,
+heteroscedastic prediction of mean and variance, and averaging ensembles
+\cite{lakshminarayanan2017ensembles}.
 
-We computed the loss over the full 61-channel output rather than the suppressed
-entries alone, treating the task as ordinary regression. Our reference is the
-mean squared error,
+\subsection{Training}
+\label{sec:training}
+
+We trained with the mean squared error computed over the full 61-channel
+output rather than the suppressed entries alone,
 %
 \begin{equation}
-\mathcal{L} = \frac{1}{61} \sum_{c=1}^{61} \left( \hat{y}_{c} - y_{c} \right)^{2},
+\mathcal{L} = \frac{1}{61} \sum_{c=1}^{61}
+              \left( \hat{y}_{c} - y_{c} \right)^{2},
 \label{eq:loss}
 \end{equation}
 %
-selected after comparing it against the mean absolute error and the Huber loss
-with $\delta = 0.1$. We additionally tested two physics-informed terms, one
-penalising the position error of Eq.~\ref{eq:centroid} and one penalising the
-shift of the energy spectrum, both reported in Section~\ref{sec:results}.
+which treats the task as ordinary regression and keeps the healthy channels as
+a consistency constraint. We selected this loss after comparing it against the
+mean absolute error and the Huber loss \cite{huber1964} with $\delta = 0.1$.
+We also tested two physics-informed variants, one penalising the displacement
+of the reconstructed position and one penalising the shift of the energy
+spectrum; both are reported in Section~3.
 
-\subsection{Training Setup}
-\label{sec:training}
-
-Table~\ref{tab:hyperparams} lists the configuration. One aspect of the schedule
-requires clarification, because the word ``epoch'' does not carry its usual
-meaning here: each epoch loads \emph{one} detector module and draws
-\num{107000} events from it. The 149 epochs therefore correspond to the 149
-training modules, each visited once, and the number is set by the partition
-rather than tuned. The resulting budget of \num{15943000} samples matches the
-one used before full coverage was adopted, so that changes in coverage are not
-confounded with changes in cost.
-
-We trained with AdamW and a cosine schedule whose period equals the number of
-epochs. We applied no early stopping, since every epoch supplies previously
-unseen data, and we selected the final checkpoint by the validation error on
-the imputed channel, computed on a fixed set of \num{400000} events with a
-fixed mask seed. Every run stores its preprocessing configuration inside the
-checkpoint, so that an evaluation cannot silently apply a normalisation
-different from the one used in training.
+Table~\ref{tab:hyperparams} lists the configuration. Two aspects of the
+procedure are worth making explicit. First, the training set does not fit in
+memory, so modules are loaded one at a time and contribute \num{107000} events
+each; the model therefore performs a single pass over \num{15943000} masked
+samples. Since the masks are regenerated for every sample, no exact input is
+ever repeated, which is why we applied no early stopping. Second, we selected
+the final weights by the validation error on the imputed channel, computed on
+a fixed set of \num{400000} events with a fixed mask seed. We did not use the
+total loss for this purpose. It is dominated by the 60 healthy channels and
+stays nearly flat across the run, so it separates checkpoints poorly.
 
 \begin{table}[t]
 \centering
 \caption{Training configuration of the reference model.}
 \label{tab:hyperparams}
-\begin{tabular}{@{}lc@{}}
+\begin{tabular}{@{}ll@{}}
 \toprule
-\textbf{Property} & \textbf{Value} \\
+\textbf{Parameter} & \textbf{Value} \\
 \midrule
-Modules per epoch          & 1 \\
-Epochs (= training modules) & 149 \\
-Events per epoch           & \num{107000} \\
-Total sample budget        & \num{15943000} \\
-Batch size                 & 512 \\
-Optimiser                  & AdamW \\
-Learning rate              & $10^{-3}$ \\
-Weight decay               & $10^{-4}$ \\
-Scheduler                  & Cosine, $T_{\max} = 149$ \\
-Early stopping             & None \\
-Checkpoint selection       & Validation MAE, imputed channel \\
-Validation events          & \num{400000} \\
-Loss                       & MSE \\
+Architecture        & HexGNN, 4 blocks, hidden width 48 \\
+Trainable parameters & \num{38305} \\
+Activation          & GELU \\
+Loss                & MSE over the 61 channels \\
+Optimiser           & AdamW \cite{loshchilov2019adamw} \\
+Learning rate       & $10^{-3}$, cosine decay \cite{loshchilov2017sgdr} \\
+Weight decay        & $10^{-4}$ \\
+Batch size          & 512 \\
+Training samples    & \num{15943000} (single pass) \\
+Validation events   & \num{400000}, fixed masks \\
+Model selection     & Validation MAE on the imputed channel \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+Each run stores its preprocessing configuration inside the checkpoint. This is
+a safeguard rather than a detail: a model trained with one normalisation and
+evaluated with another produces meaningless numbers without raising any error,
+and verifying the match automatically removes that failure mode.
+
 \subsection{Evaluation Metrics}
 \label{sec:metrics}
 
-The quantity we ultimately care about is not the charge of the recovered
-channel but the position it yields, so our primary metric is defined on
-Eq.~\ref{eq:centroid}. For each event we computed the displacement $\Delta R$
-between the true centroid and the centroid obtained after suppressing a
-channel, both without correction (\emph{degraded}) and after imputation
-(\emph{imputed}). The recovery is the fraction of that displacement which the
-model removes,
+The quantity the model minimises is the error in the recovered charge, but on
+its own it says little about whether the method is useful. What matters is how
+much of the degradation caused by the fault is undone. We therefore evaluated
+on three levels: the charge itself, the position it produces, and the physical
+quantities the detector is built to deliver.
+
+At the charge level we report the mean absolute error on the imputed channel in
+normalised units, together with the bias, which acts as a guardrail: a model
+can attain a low absolute error while systematically under-predicting, and the
+bias exposes that. Because the normalised error is hard to interpret on its
+own, we also express it relative to the mean charge of each channel. This last
+figure is sensitive to the number of events used to compute the denominator, so
+we evaluated numerator and denominator on the same sample throughout.
+
+The position level is our primary metric, since it is the one that reaches the
+image. For each event we computed the interaction position by centre of gravity
+weighted by the squared charge \cite{anger1958, poladyan2020}. We then measured
+the displacement $\Delta R$ between the position given by the intact event and
+the position given by the faulty one, both before and after imputation. The recovery is the fraction of that displacement the model
+removes,
 %
 \begin{equation}
 \mathrm{Recovery} = 100 \times
@@ -736,30 +680,36 @@ model removes,
 \label{eq:recovery}
 \end{equation}
 %
-where numerator and denominator are evaluated at the same quantile and over the
-same population of events. We report the value at the 90th percentile, which
-weights the difficult events, and we also report the mean. Averaging over the
-61 channels gives the macro figures used throughout
-Section~\ref{sec:results}, and the minimum over channels characterises the
-worst case.
+with both terms evaluated at the same quantile and over the same population of
+events. Note that both displacements are measured against the intact event, so
+the numerator is already the residual error of the imputation; the denominator
+normalises it by the damage the fault caused. We report the value at the 90th
+percentile, which weights the difficult events, and also the mean. Averaging
+over the 61 channels gives the macro figures used throughout, and the minimum
+over channels characterises the worst case. Because a relative measure hides
+the magnitude of what remains, we report $\Delta R_{\text{imp}}$ in millimetres
+as well.
 
-As secondary metrics we used the mean absolute error on the imputed channel in
-normalised units, the bias as a guardrail against systematic under-prediction,
-and the relative charge error. Two additional analyses address physical
-fidelity rather than accuracy. The first measures the point-spread function of
-the flood map, comparing its FWHM before and after imputation. The second
-measures the preservation of the energy spectrum by zones of the crystal,
-defined through concentric hexagonal bands, using a paired differential design:
-we subtract the true channel and add back the prediction over the same events,
-so that the absence of energy calibration cancels between the two terms.
+Two further analyses address physical fidelity rather than accuracy. The first
+measures the point-spread function of the flood map, comparing its full width
+at half maximum before and after imputation, which connects the method to the
+spatial resolution of the detector \cite{moses2011}. The second measures
+whether the energy spectrum survives imputation, evaluated by zones of the
+crystal defined through concentric hexagonal bands, since the black adhesive on
+the lateral faces makes the periphery behave differently from the centre
+\cite{conde_minimization_2014}. This second analysis uses a paired differential
+design: over the same events we subtract the true channel and add back the
+prediction, so that the absence of energy calibration affects both terms
+identically and cancels.
 
-Finally, to evaluate the pipeline on genuinely faulty hardware, we used a
-position-aware statistic that flags anomalous channels in the \textsc{Bad}
-modules from the robust $z$-score of two quantities, the fraction of events in
-which a channel fires and its charge ratio against its neighbours, both
-referenced to the baseline built from the \textsc{Good} modules. This addresses
-the same task that industrial practice solves by masking the affected channel
-and compensating downstream \cite{philips2015deadpixel}.
+Finally, a note on what these numbers can and cannot support. Comparisons
+between models are paired, in that every model is evaluated on the same
+modules, the same events and the same masks, so relative differences are
+measured precisely. Absolute performance on a new detector, however, is a
+different matter, because modules differ from one another far more than
+training runs do.
+We quantified both sources of variation separately, and Section~3 reports them
+alongside the results they qualify.
 
 
 % ---------------------------------------------------------------------
@@ -988,8 +938,8 @@ bands.}
 
 \subsection{Physics-Informed Losses and Ensembles}
 
-Adding the position error of Eq.~\ref{eq:centroid} to the loss leaves recovery
-unchanged at 58.23\,\% against 58.02\,\% for the reference. Adding a term on
+Adding a term that penalises the displacement of the reconstructed position
+leaves recovery unchanged at 58.23\,\% against 58.02\,\% for the reference. Adding a term on
 the energy spectrum degrades it to 46.04\,\%, with the bias changing sign.
 Heteroscedastic prediction of mean and variance reaches 20.08\,\%.
 
@@ -997,31 +947,11 @@ Averaging the outputs of three independently trained replicas raises recovery
 to 58.69\,\%, and averaging three different architectures raises it to
 58.73\,\%, against $58.04 \pm 0.37$\,\% for a single model.
 
-\subsection{Application to Faulty Modules}
-
-On the \textsc{Bad} set, the detection statistic identifies fully dead channels
-without error: the true positive rate is 1.00 for one, two, three and four
-simultaneously suppressed channels when the injected severity is total
-(Fig.~\ref{fig:roc}). Under partial degradation, in which the channel retains
-70\,\% of its response, the rate falls to 0.95 for a single channel and 0.89
-for two.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{deteccion_roc}
-\caption{Detection of faulty channels by ground-truth injection on healthy
-modules. ROC curves for different numbers of simultaneously affected channels.}
-\label{fig:roc}
-\end{figure}
-
-We labelled a subset of the \textsc{Bad} modules by visual inspection of their
-flood maps to compare against expert criterion. At the time of writing, 18 of
-the 62 modules have been annotated, yielding 29 channels marked as faulty
-across 14 modules; the remaining 4 modules were judged to have no defective
-channel.
-% TODO(dato): completar el etiquetado de los 62 modulos y calcular el acuerdo
-% experto-vs-estadistico sobre el conjunto completo.
-
+% NOTA (24/08): la subseccion "Application to Faulty Modules" se ha retirado
+% junto con el estadistico z-score de Metodos. No se menciona en la
+% introduccion y el trabajo no lo usa, asi que quedaba huerfano. El material
+% (ROC, TPR de 1.00 a severidad total, etiquetado de 18/62 modulos) sigue en
+% reports/bad_validation.json por si se decide reincorporarlo.
 
 % ---------------------------------------------------------------------
 \section{Discussion}
