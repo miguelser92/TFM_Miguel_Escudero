@@ -27,10 +27,15 @@
          separate-uncertainty=true, per-mode=symbol}
 \usepackage{algorithm,algpseudocode}
 
-% --- Numeracion de secciones: 1, 1.1, 1.1.1 en vez de I, A, 1) -------
+% --- Numeracion: arabigos en vez de los romanos de IEEEtran ---------
+% Secciones: I, A, 1) -> 1, 1.1, 1.1.1
 \renewcommand{\thesection}{\arabic{section}}
 \renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
 \renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+% Tablas: IEEEtran las numera en romanos (TABLE I). Figuras ya van en
+% arabigos, pero se fija tambien para que no dependa de la clase.
+\renewcommand{\thetable}{\arabic{table}}
+\renewcommand{\thefigure}{\arabic{figure}}
 
 % --- Citas IEEE + enlaces (hyperref SIEMPRE el ultimo) --------------
 \usepackage{cite}
