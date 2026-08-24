@@ -438,15 +438,13 @@ described in Section~1. Each module is built around a monolithic LYSO hexagonal
 prism, 17.6\,mm on a side and 13\,mm thick, laser-etched into 364 optical
 structures that constrain how the scintillation light spreads before reaching
 the photosensor \cite{perez-benito_laser-microstructured_2025}. An array of
-silicon photomultipliers is optically coupled to its rear face
-\cite{perez-benito_sipm-based_2019}. The array provides 64 readout channels, of
-which 61 are instrumented; the remaining three are inactive and we excluded
-them throughout. The active sensors tile a hexagonal lattice with a pitch of
-3.75\,mm and span 26\,mm across, so that they do not reach the crystal
-boundary. The lateral faces of the crystal carry an absorbing black adhesive
+silicon photomultipliers is optically coupled to its posterior face
+\cite{perez-benito_sipm-based_2019}. The array provides 61 instrumented readout
+channels, which tile a hexagonal lattice with a pitch of 3.75\,mm and span
+26\,mm across, so that the sensors do not reach the crystal boundary. The lateral faces of the crystal carry an absorbing black adhesive
 that suppresses edge reflections. This has a consequence that recurs
 throughout our results: interactions near the perimeter lose a measurable
-fraction of their light, which shifts both the charge recorded by the outermost
+fraction of their light, which shifts both the charge recorded by the peripheral
 channels and the position of the energy photopeak in those regions.
 
 We used acquisitions recorded with a $^{22}$Na source under flood irradiation,
@@ -571,8 +569,8 @@ h_{c}^{(l+1)} = \sigma\!\left( W_{s} h_{c}^{(l)}
 \label{eq:hexconv}
 \end{equation}
 %
-where $\mathcal{N}(c)$ are the neighbours of sensor $c$ and $\sigma$ is a GELU
-nonlinearity \cite{hendrycks2016gelu}. The aggregation is isotropic: every
+where $\mathcal{N}(c)$ are the neighbours of sensor $c$ and $\sigma$ is a Gaussian error
+linear unit (GELU) \cite{hendrycks2016gelu}. The aggregation is isotropic: every
 neighbour of a node shares the weight matrix $W_{n}$, so the layer encodes
 adjacency but not direction. Batch normalisation \cite{ioffe2015batchnorm} is
 applied between blocks. Our reference configuration uses a hidden width of 48
@@ -587,11 +585,31 @@ perceptron and a residual multilayer perceptron with channel attention. Both
 receive the same information but no notion of adjacency, which isolates the
 contribution of the prior from that of raw capacity.
 
-We also evaluated four alternative graph formulations, to test whether the
-isotropic mean is what limits performance: attention over neighbours
-\cite{velickovic2018gat}, multiple aggregation statistics combined with degree
-scalers \cite{corso2020pna}, an encoder--decoder with graph pooling
-\cite{gao2019graphunet}, and a graph transformer with global attention
+
+The aggregation in Eq.~\ref{eq:hexconv} is deliberately simple, and it is fair
+to ask whether that simplicity is what limits performance. We therefore tested
+four alternatives, each addressing a different suspicion about where the
+bottleneck might be.
+
+If the six neighbours of a sensor contribute unequally --- and they might, since
+the light reaching one of them depends on the direction of the interaction ---
+then averaging them discards useful information. Graph attention networks (GAT)
+\cite{velickovic2018gat} learn a weight per neighbour instead of fixing it,
+which lets the model decide how much each one should count. A related but
+broader concern is that the mean is only one summary of a neighbourhood.
+Principal neighbourhood aggregation (PNA) combines several statistics and
+scales them by node degree, retaining information that any single one throws
+away \cite{corso2020pna}; degree varies here between three and six, so the
+scaling is not vacuous.
+
+The other two alternatives question the locality of the model rather than its
+aggregation. Our layers propagate information one hop at a time, so with four
+blocks a sensor only sees four rings away. If the missing charge were
+constrained by the global shape of the light distribution, a wider receptive
+field would help. We tested this in two forms: a graph U-Net, which pools the
+graph into a coarser representation before expanding it back
+\cite{gao2019graphunet}, and a graph transformer (Graphormer) in which every
+node attends to every other one regardless of adjacency
 \cite{ying2021graphormer}. We also tested metric edge features, anisotropic
 hexagonal convolution with one weight per direction, per-channel equalisation,
 heteroscedastic prediction of mean and variance, and averaging ensembles
@@ -600,7 +618,7 @@ heteroscedastic prediction of mean and variance, and averaging ensembles
 \subsection{Training}
 \label{sec:training}
 
-We trained with the mean squared error computed over the full 61-channel
+We trained with the mean squared error (MSE) computed over the full 61-channel
 output rather than the suppressed entries alone,
 %
 \begin{equation}
@@ -611,7 +629,8 @@ output rather than the suppressed entries alone,
 %
 which treats the task as ordinary regression and keeps the healthy channels as
 a consistency constraint. We selected this loss after comparing it against the
-mean absolute error and the Huber loss \cite{huber1964} with $\delta = 0.1$.
+mean absolute error (MAE) and the Huber loss \cite{huber1964} with
+$\delta = 0.1$.
 We also tested two physics-informed variants, one penalising the displacement
 of the reconstructed position and one penalising the shift of the energy
 spectrum; both are reported in Section~3.
@@ -664,8 +683,8 @@ much of the degradation caused by the fault is undone. We therefore evaluated
 on three levels: the charge itself, the position it produces, and the physical
 quantities the detector is built to deliver.
 
-At the charge level we report the mean absolute error on the imputed channel in
-normalised units, together with the bias, which acts as a guardrail: a model
+At the charge level we report the MAE on the imputed channel in normalised
+units, together with the bias, which acts as a guardrail: a model
 can attain a low absolute error while systematically under-predicting, and the
 bias exposes that. Because the normalised error is hard to interpret on its
 own, we also express it relative to the mean charge of each channel. This last
@@ -673,39 +692,54 @@ figure is sensitive to the number of events used to compute the denominator, so
 we evaluated numerator and denominator on the same sample throughout.
 
 The position level is our primary metric, since it is the one that reaches the
-image. For each event we computed the interaction position by centre of gravity
-weighted by the squared charge \cite{anger1958, poladyan2020}. We then measured
-the displacement $\Delta R$ between the position given by the intact event and
-the position given by the faulty one, both before and after imputation. The recovery is the fraction of that displacement the model
-removes,
+image. For each event we computed the interaction position by CoG weighted by
+the squared charge \cite{anger1958, poladyan2020}, in three versions of the
+same event: intact, with the channel suppressed, and with the channel imputed.
+Comparing them against the intact position gives two displacements. The
+\emph{degraded} displacement $\Delta R_{\mathrm{deg}}$ is how far the centroid
+moves when the fault goes uncorrected, and therefore measures the damage. The
+\emph{imputed} displacement $\Delta R_{\mathrm{imp}}$ is how far it still lies
+from the true position after the model has acted, and therefore measures the
+residual error. Recovery is the fraction of the damage the model removes,
 %
 \begin{equation}
 \mathrm{Recovery} = 100 \times
-  \left( 1 - \frac{\Delta R_{\text{imp}}}{\Delta R_{\text{deg}}} \right),
+  \left( 1 - \frac{\Delta R_{\mathrm{imp}}}{\Delta R_{\mathrm{deg}}} \right),
 \label{eq:recovery}
 \end{equation}
 %
 with both terms evaluated at the same quantile and over the same population of
-events. Note that both displacements are measured against the intact event, so
-the numerator is already the residual error of the imputation; the denominator
-normalises it by the damage the fault caused. We report the value at the 90th
-percentile, which weights the difficult events, and also the mean. Averaging
-over the 61 channels gives the macro figures used throughout, and the minimum
-over channels characterises the worst case. Because a relative measure hides
-the magnitude of what remains, we report $\Delta R_{\text{imp}}$ in millimetres
-as well.
+events. A value of 100\,\% would mean the imputed position coincides with the
+intact one, and 0\,\% that imputing changed nothing. We report the value at the
+90th percentile, which weights the difficult events, and also the mean.
+Averaging over the 61 channels gives the macro figures used throughout, and the
+minimum over channels characterises the worst case. Since a ratio says nothing
+about the magnitude of what remains, we also report
+$\Delta R_{\mathrm{imp}}$ in millimetres.
 
-Two further analyses address physical fidelity rather than accuracy. The first
-measures the point-spread function of the flood map, comparing its full width
-at half maximum before and after imputation, which connects the method to the
-spatial resolution of the detector \cite{moses2011}. The second measures
-whether the energy spectrum survives imputation, evaluated by zones of the
-crystal defined through concentric hexagonal bands, since the black adhesive on
-the lateral faces makes the periphery behave differently from the centre
-\cite{conde_minimization_2014}. This second analysis uses a paired differential
-design: over the same events we subtract the true channel and add back the
-prediction, so that the absence of energy calibration affects both terms
-identically and cancels.
+Two further analyses ask a different question. Recovery tells us how close the
+imputed position is to the true one, but not whether the restored signal is
+physically admissible. A model could place events correctly on average while
+distorting the quantities the detector is built to measure.
+
+The first analysis concerns spatial resolution. Each of the 364 etched
+structures produces a spot in the flood map, and the width of that spot sets
+how finely two interactions can be told apart \cite{moses2011}. We therefore
+fitted the spot and measured its FWHM in three conditions --- intact, degraded
+and imputed --- so that the improvement can be read in the same units in which
+detector resolution is normally quoted.
+
+The second concerns energy. Suppressing a channel removes part of the collected
+light, so the reconstructed energy of the event falls and the photopeak shifts
+towards lower values; a good imputation should put it back. Measuring this is
+complicated by the absence of energy calibration, since we cannot convert
+ADC counts into keV. We avoided the problem with a paired differential design:
+over the same events we subtract the true charge of the channel and add back
+the prediction, so any calibration factor multiplies both terms and cancels.
+We evaluated this by zones of the crystal, defined as concentric hexagonal
+bands, because the absorbing adhesive on the lateral faces makes the periphery
+behave differently from the centre \cite{conde_minimization_2014} and an
+average over the whole crystal would hide that difference.
 
 Finally, a note on what these numbers can and cannot support. Comparisons
 between models are paired, in that every model is evaluated on the same
