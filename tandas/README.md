@@ -19,6 +19,8 @@ detiene si un paso falla.
 | noche_multidead_near.ps1 | 19 ago | near vs cluster en los tres regimenes con cobertura completa. Cae la ventaja EN LOS TRES: near solo gana en el suyo (+1,99, z=2,9) y empata en los extremos. Lo determinante es entrenar multi-dead: +24 pts sobre k=1 |
 | noche_mix_estabilidad.ps1 | 20 ago | NO estabiliza: sd 3,31 vs 4,45 pero F=1,81 p=0,750, y la media empeora -0,65. El minimo sobre 61 canales es ruidoso de por si |
 
+| noche_espectro_resolucion.ps1 | 23 ago | (pendiente) Espectro por zonas y resolucion sobre los 3 modelos de referencia con cobertura completa. Solo evaluacion. Da por primera vez banda de error a las dos metricas fisicas del paper |
+
 **Fase experimental cerrada el 20/08.** Cinco noches, ~68 h de computo. Lo que queda es redaccion.
 
 Los logs van a `tandas/logs/` y no se versionan: son reproducibles relanzando el

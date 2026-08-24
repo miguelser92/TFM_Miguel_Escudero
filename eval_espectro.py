@@ -351,7 +351,27 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
-    _, _, test_files = get_file_split(GOOD_DIR)
+
+    # La partición debe ser la MISMA con la que se entrenó cada run: evaluar con
+    # otra significaría medir sobre módulos que el modelo sí vio. Se exige que
+    # todos los runs de la tanda la compartan, porque los datos de test se cargan
+    # una sola vez y se reutilizan. Mismo arreglo que eval_total (11/08) y
+    # eval_resolution (23/08); ver E11 del registro de errores.
+    def _split_seed_de(run):
+        from imputation_eval import load_ckpt_meta
+        try:
+            return load_ckpt_meta(Path(RUNS_BASE) / run / 'best_model.pth').get('split_seed', 42)
+        except Exception:
+            return 42
+
+    _seeds = {r: _split_seed_de(r) for r in runs}
+    if len(set(_seeds.values())) > 1:
+        raise SystemExit(f"Los runs no comparten partición: {_seeds}. Evalúalos por separado.")
+    split_seed = next(iter(_seeds.values()))
+    _, _, test_files = get_file_split(GOOD_DIR, seed=split_seed)
+    if split_seed != 42:
+        print(f"  PARTICION NO ESTANDAR (split_seed={split_seed}) -> test: "
+              f"{[f.name for f in test_files]}")
 
     ev_str = f"{max_ev:,}" if max_ev else 'TODOS los'
     print(f"Cargando {len(test_files)} archivos de test ({ev_str} eventos c/u)...")

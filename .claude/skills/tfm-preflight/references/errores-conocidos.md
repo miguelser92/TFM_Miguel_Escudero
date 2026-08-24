@@ -123,4 +123,16 @@ Este fichero es acumulativo: no se borran entradas aunque estén corregidas. Una
 
 ---
 
+### E11 — Un arreglo aplicado a un solo fichero cuando el patrón está en varios
+
+- **Qué pasó:** el 11/08 se corrigió `eval_total.py` para que leyera `split_seed` del checkpoint en vez de dar por hecha la partición por defecto (si no, evalúa sobre módulos que el modelo sí vio). **El mismo patrón seguía sin corregir en `eval_resolution.py`** hasta el 23/08. Con los modelos de validación cruzada, `eval_resolution` habría medido sobre `datas057/116/126/202/214` cuando el test real de `cvB` es `datas037/045/101/122/172`: cinco módulos de entrenamiento.
+- **Síntoma observable:** ninguno. Devuelve un número plausible y algo mejor de lo real, que es lo peor que puede pasar.
+- **Detección:**
+  - Cuando se arregle un bug en un evaluador, **buscar el mismo patrón en todos los hermanos**: `grep -n "get_file_split" eval_*.py` y comprobar cuáles pasan `seed=` y cuáles no.
+  - Antes de lanzar cualquier evaluación, confirmar que el test que usará coincide con el `split_seed` del checkpoint.
+- **Arreglo:** `eval_resolution.py` lee ahora `split_seed` del checkpoint y avisa cuando la partición no es la estándar. Verificado que para `split_seed=42` el resultado es **idéntico bit a bit** al anterior, así que no invalida ninguna cifra ya publicada.
+- **Estado:** corregido 23/08. Quedan por revisar el resto de evaluadores con la misma receta.
+
+---
+
 <!-- Entradas nuevas debajo de esta línea, numeración correlativa. Cada una necesita su receta de detección. -->

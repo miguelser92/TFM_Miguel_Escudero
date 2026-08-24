@@ -72,8 +72,23 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     x_sipm, y_sipm = load_positions(PSIPM_PATH)
-    _, _, test_files = get_file_split(GOOD_DIR)
-    model = load_model(Path(RUNS_BASE) / args.run / 'best_model.pth', device)
+
+    # La partición debe ser la MISMA con la que se entrenó este run. Desde que
+    # existe --splitseed (validación cruzada) no se puede dar por hecha la de por
+    # defecto: evaluar con otra significaría medir sobre módulos que el modelo sí
+    # vio. Mismo arreglo que se hizo en eval_total.py el 11/08.
+    ckpt_path = Path(RUNS_BASE) / args.run / 'best_model.pth'
+    try:
+        from imputation_eval import load_ckpt_meta
+        split_seed = load_ckpt_meta(ckpt_path).get('split_seed', 42)
+    except Exception:
+        split_seed = 42
+    _, _, test_files = get_file_split(GOOD_DIR, seed=split_seed)
+    if split_seed != 42:
+        print(f"  PARTICION NO ESTANDAR (split_seed={split_seed}) -> test: "
+              f"{[f.name for f in test_files]}")
+
+    model = load_model(ckpt_path, device)
 
     print(f"Cargando {len(test_files)} archivos de test ({args.max_events} ev/archivo)...")
     X_list = [load_dat_to_dense(f, max_events=args.max_events) for f in test_files]
