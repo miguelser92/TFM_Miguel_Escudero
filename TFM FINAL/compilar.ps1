@@ -36,13 +36,12 @@ New-Item -ItemType Directory -Force -Path $build | Out-Null
 Push-Location $raiz
 Write-Host "Compilando $Documento ..."
 
-# latexmk se encarga de las pasadas necesarias y de llamar a bibtex.
-# -outdir manda TODO a .build, incluido el PDF, que se copia despues.
-# OJO: '-outdir=.build' va ENTRECOMILLADO. Sin comillas, PowerShell lo parte en
-# dos argumentos ('-outdir=' y '.build') y latexmk falla con un
-# "Could not find file '.build'" que no dice nada del motivo real.
-# Y se le pasa el NOMBRE del .tex, no la ruta absoluta.
-& latexmk -pdf -interaction=nonstopmode '-outdir=.build' "$Documento.tex" | Out-Null
+# La configuracion (auxiliares a .build, PDF en la carpeta) vive en .latexmkrc,
+# que latexmk lee solo. Asi el editor y este script hacen lo mismo.
+# OJO: se le pasa el NOMBRE del .tex, no la ruta absoluta, o el aux_dir se
+# descoloca. Y nada de 2>&1: PowerShell 5.1 envuelve stderr en ErrorRecord y
+# aborta aunque latexmk devuelva 0.
+& latexmk -pdf "$Documento.tex" | Out-Null
 $code = $LASTEXITCODE
 
 $log = Join-Path $build "$Documento.log"
@@ -56,7 +55,7 @@ if (Test-Path $log) {
 }
 
 if ($code -eq 0 -and $errores -eq 0) {
-    Copy-Item (Join-Path $build "$Documento.pdf") $raiz -Force
+    # el PDF ya queda en la carpeta: .latexmkrc pone out_dir en '.'
     Write-Host "  OK  $Documento.pdf  ($paginas paginas)"
     if ($citas) { Write-Host "  AVISO: $citas citas sin resolver" -ForegroundColor Yellow }
     if ($refs)  { Write-Host "  AVISO: $refs referencias sin resolver" -ForegroundColor Yellow }

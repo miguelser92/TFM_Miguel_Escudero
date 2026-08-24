@@ -28,10 +28,22 @@
 \usepackage{algorithm,algpseudocode}
 
 % --- Numeracion: arabigos en vez de los romanos de IEEEtran ---------
-% Secciones: I, A, 1) -> 1, 1.1, 1.1.1
+% Por defecto IEEEtran da  I. / B. / 3)  y aqui se quiere  2 / 2.1 / 2.1.1
+%
+% OJO: no basta con redefinir \thesection y compania. Esas mandan en las
+% referencias cruzadas, pero para los TITULOS la clase usa unas macros
+% propias terminadas en "dis" (de display), definidas en IEEEtran.cls
+% alrededor de la linea 2585 y usadas por \@seccntformat. Si solo se
+% cambian las primeras, los \ref salen bien y los encabezados siguen en
+% romanos y letras, que es justo lo que pasaba.
 \renewcommand{\thesection}{\arabic{section}}
 \renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
 \renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+\makeatletter
+\def\thesectiondis{\thesection}
+\def\thesubsectiondis{\thesubsection}
+\def\thesubsubsectiondis{\thesubsubsection}
+\makeatother
 % Tablas: IEEEtran las numera en romanos (TABLE I). Figuras ya van en
 % arabigos, pero se fija tambien para que no dependa de la clase.
 \renewcommand{\thetable}{\arabic{table}}
