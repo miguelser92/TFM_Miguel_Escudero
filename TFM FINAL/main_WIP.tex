@@ -768,153 +768,235 @@ alongside the results they qualify.
 \label{sec:results}
 % ---------------------------------------------------------------------
 
-\subsection{Value of the Geometric Prior}
+Unless stated otherwise, every figure in this section refers to the reference
+model evaluated on the five held-out modules. Results are quoted as
+mean $\pm$ standard deviation over independent training runs, and we state the
+sample size in each case. Evaluation campaigns differ slightly in the number of
+events drawn per test file. We measured that effect by evaluating the same
+model under two of them and found it below 0.3 percentage points, well under
+the variability reported here, so the text does not distinguish between them.
 
-Table~\ref{tab:architectures} compares the architectures under a common
-evaluation campaign of \num{600000} events per test file. The two models
-without a geometric prior reach 51.39\,\% and 48.92\,\% recovery at the 90th
-percentile, while the smallest graph model reaches 58.02\,\% with an order of
-magnitude fewer parameters. Widening the graph model, however, changes little: 58.27\,\% for
-\textsc{HexGNN-m} and 57.47\,\% for \textsc{HexGNN-l}, against 58.02\,\% for
-the 38\,k-parameter reference.
+\subsection{Imputation Accuracy}
+\label{sec:res-accuracy}
+
+The model recovers the charge of a suppressed channel with a mean absolute
+error of $0.6228 \pm 0.0064$ in normalised units ($n=4$). Expressed relative to
+the mean charge that each channel collects, this amounts to a 29.1\,\% error,
+and it is not uniform across the array: 25.9\,\% for channels in the core of the
+crystal against 34.0\,\% at the edge. The absorbing adhesive on the lateral
+faces accounts for that gap, since peripheral channels collect less light and
+their neighbours carry correspondingly less information about them.
+
+The bias stays at $-0.062 \pm 0.023$, that is, below a tenth of the MAE. This
+matters because the failure mode we were guarding against is a model that
+minimises its error by predicting conservatively low values, which would look
+acceptable in the MAE and would systematically displace the reconstructed
+position. It does not happen.
+
+\subsection{Recovery of the Reconstructed Position}
+\label{sec:res-position}
+
+Charge error is an intermediate quantity. What reaches the image is the
+displacement of the centroid, and Table~\ref{tab:position} gives it in
+millimetres. Suppressing a channel moves the reconstructed position of the
+affected events by a median of 0.099\,mm and, for the worst tenth of them, by
+0.666\,mm. After imputation those figures fall to 0.047\,mm and 0.288\,mm. The
+residual displacement at the 90th percentile is therefore 7.7\,\% of the
+3.75\,mm sensor pitch.
 
 \begin{table}[t]
 \centering
-\caption{Architecture comparison. Common campaign of \num{600000} events per
-test file. Recovery in per cent, MAE in normalised units.}
+\caption{Displacement of the reconstructed position with respect to the intact
+event, before and after imputation, in millimetres.}
+\label{tab:position}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \textbf{Degraded} & \textbf{Imputed} & \textbf{Recovery} \\
+\midrule
+Median          & 0.099 & 0.047 & 52.1\,\% \\
+Mean            & 0.241 & 0.118 & 51.0\,\% \\
+90th percentile & 0.666 & 0.288 & 56.8\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Fig.~\ref{fig:linediff} shows what this means for the image. Each panel is the
+difference between a flood map and the intact reference, averaged over failures
+of the sensors along one line of the array. Without correction the difference
+covers the neighbourhood of the failing channel with a pattern of excess and
+deficit counts, which is the signature of events being displaced towards the
+surviving sensors. After imputation that pattern largely disappears. The lower
+row, which follows a line towards the edge of the crystal, shows a residual
+that the upper row does not: the periphery is where the method has least
+information to work with, in agreement with the per-channel errors of
+Section~\ref{sec:res-accuracy}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{line_floodmap_diff}
+\caption{Average flood-map distortion caused by the failure of a sensor.
+Each panel shows the difference in counts with respect to the intact map: red
+where the fault adds events and blue where it removes them. Top row, sensors
+along a radial line; bottom row, sensors along a line towards the edge. Left,
+without correction; right, after imputation. The dashed hexagons mark the
+sensors involved and the green outline the crystal boundary.}
+\label{fig:linediff}
+\end{figure*}
+
+Performance is not uniform across the detector. Fig.~\ref{fig:mapa} maps the
+recovery of each of the 61 channels and reproduces the same core-to-edge
+gradient. Central channels, whose light is shared with six neighbours, exceed
+60\,\%; channels on the perimeter, with three or four neighbours and less
+collected light, fall below 45\,\%.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{mapa_recuperacion}
+\caption{Recovery per channel over the 61 active sensors, at the 90th
+percentile (left) and on average (right). The colour scale is common to both
+panels. Recovery degrades towards the perimeter of the array.}
+\label{fig:mapa}
+\end{figure*}
+
+Fig.~\ref{fig:floodmap-res} closes the sequence with the flood map itself,
+where the practical consequence is visible: the etched structures around the
+failing channel, which the fault blurs into one another, are resolved again
+after imputation.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{floodmap}
+\caption{Flood map of a test module reconstructed from the same events. Left,
+with all 61 channels operational; centre, with one channel disabled; right,
+after imputing it.}
+\label{fig:floodmap-res}
+\end{figure*}
+
+\subsection{Value of the Geometric Prior}
+\label{sec:res-prior}
+
+Table~\ref{tab:architectures} compares the architectures under a common
+campaign. The two models without a geometric prior reach 51.39\,\% and
+48.92\,\% recovery at the 90th percentile. The smallest graph model reaches
+58.0\,\% with an order of magnitude fewer parameters than either of them.
+
+\begin{table}[t]
+\centering
+\caption{Architecture comparison under a common evaluation campaign. Recovery
+at the 90th percentile and on average, in per cent; MAE in normalised units.}
 \label{tab:architectures}
 \begin{tabular}{@{}lrccc@{}}
 \toprule
 \textbf{Model} & \textbf{Params} & \textbf{Rec.\ p90} & \textbf{Rec.\ mean} & \textbf{MAE} \\
 \midrule
-DeepMLP          & \num{500541}  & 51.39 & 45.90 & 0.7219 \\
-ResidualMLP      & \num{345981}  & 48.92 & 44.81 & 0.7299 \\
-Graphormer       & \num{4263881} & 55.17 & 49.65 & 0.6600 \\
-Graph U-Net      & \num{331649}  & 55.22 & 47.95 & 0.6918 \\
-PNA              & \num{165761}  & 58.45 & 52.48 & 0.6309 \\
-\textsc{HexGNN-s} & \num{38305}  & 58.02 & 52.66 & 0.6195 \\
-\textsc{HexGNN-m} & \num{225217} & 58.27 & 52.64 & 0.6185 \\
-\textsc{HexGNN-l} & \num{398593} & 57.47 & 51.96 & 0.6385 \\
+DeepMLP           & \num{500541}  & 51.39 & 45.90 & 0.7219 \\
+ResidualMLP       & \num{345981}  & 48.92 & 44.81 & 0.7299 \\
+Graphormer        & \num{4263881} & 55.17 & 49.65 & 0.6600 \\
+Graph U-Net       & \num{331649}  & 55.22 & 47.95 & 0.6918 \\
+PNA               & \num{165761}  & 58.45 & 52.48 & 0.6309 \\
+\textsc{HexGNN-s} & \num{38305}   & 58.02 & 52.66 & 0.6195 \\
+\textsc{HexGNN-m} & \num{225217}  & 58.27 & 52.64 & 0.6185 \\
+\textsc{HexGNN-l} & \num{398593}  & 57.47 & 51.96 & 0.6385 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-To test whether the graph structure itself carries the advantage, rather than
-the inductive bias of message passing in general, we retrained the reference
-with the adjacency randomly permuted, preserving the number of nodes, the
-number of edges and the degree distribution. Recovery falls to 28.08\,\%,
-27.66\,\% and 31.28\,\% across three shuffles (Fig.~\ref{fig:ablacion}),
-against 58.02\,\% for the true adjacency.
+Neither capacity nor a more elaborate aggregation moves that figure. Widening
+the graph model changes recovery by less than a point in either direction. The
+two architectures with a wider receptive field, however, perform three points
+\emph{worse} despite using up to a hundred times more parameters, and combining
+several aggregation statistics matches the reference rather than exceeding it. The problem behaves as a local
+one, and the isotropic mean over immediate neighbours is enough to solve it.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{ablacion}
-\caption{Effect of destroying the detector geometry. Recovery at the 90th
-percentile for the reference model with the true adjacency and for three
-independent random permutations of the graph that preserve node count, edge
-count and degree distribution.}
-\label{fig:ablacion}
-\end{figure}
+To test whether the advantage comes from the detector geometry rather than from
+message passing in general, we retrained the reference with the adjacency
+randomly permuted, preserving the number of nodes, the number of edges and the
+degree distribution. The graph is then equally connected but physically
+meaningless. Recovery collapses to 28.08\,\%, 27.66\,\% and 31.28\,\% across three
+independent permutations, roughly half of the 58.0\,\% obtained with the true
+adjacency. The prior therefore accounts for about thirty points of the sixty
+the model achieves, and it is the specific adjacency of the detector that
+matters, not the fact of using a graph.
 
-Against the classical methods, evaluated on the same channels, the network
-recovers 57.9\,\% compared with 45.41\,\% for the neighbour mean and 46.56\,\%
-for the per-channel linear regression, differences of 12.49 and 11.33
-percentage points respectively.
+Against methods without learned parameters the network recovers 57.9\,\%,
+compared with 45.41\,\% for the mean of the neighbouring channels and
+46.56\,\% for a per-channel linear regression on the remaining 60. The margin
+is 12.49 and 11.33 percentage points respectively, which answers the question
+of whether the complexity of the model is warranted.
 
-We also quantified how far the useful information extends. Fitting linear
-regressions restricted to concentric rings of neighbours gives 44.04\,\%
-recovery with the first ring (5.1 channels on average), 46.42\,\% with the
-second (13.7 channels) and 46.51\,\% with the third (24.1 channels), against
-46.55\,\% when all 60 remaining channels are used.
+The linear baselines also let us measure how far the useful information
+extends. Restricting the regression to the first ring of neighbours, 5.1
+channels on average, gives 44.04\,\% recovery. Adding the second ring, 13.7
+channels, raises it to 46.42\,\%. The third ring adds 0.09 points and using all
+60 remaining channels adds a further 0.04. Beyond the second ring there is
+essentially nothing left to extract, which is consistent with a model whose
+layers propagate information only a few hops.
 
-\subsection{Reference Performance and Its Variability}
+\subsection{Generalisation and Variability}
+\label{sec:res-variability}
 
 A single figure of merit says little without knowing how much it moves, so we
-measured two sources of variability separately. Table~\ref{tab:reference}
-reports both. Across four independent training runs, differing in the global
-seed and in the module ordering, recovery at the 90th percentile is
-$58.04 \pm 0.37$\,\% and the mean recovery is $52.15 \pm 0.31$\,\%.
+measured the two sources of variability separately (Table~\ref{tab:reference}).
+Across four independent training runs on a fixed partition, differing in the
+global seed and in the order of the modules, recovery at the 90th percentile is
+$58.04 \pm 0.37$\,\%.
 
 \begin{table}[t]
 \centering
-\caption{Reference model and sources of variability. Values are mean $\pm$
-standard deviation. $n$ is the number of independent runs.}
+\caption{Sources of variability in the reference model. Values are
+mean $\pm$ standard deviation over $n$ independent runs.}
 \label{tab:reference}
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Source} & \textbf{$n$} & \textbf{Rec.\ p90} & \textbf{Rec.\ mean} \\
+\textbf{Source of variation} & \textbf{$n$} & \textbf{Rec.\ p90} & \textbf{Rec.\ mean} \\
 \midrule
-Independent training runs & 4 & $58.04 \pm 0.37$ & $52.15 \pm 0.31$ \\
-Data partition (CV)       & 5 & $56.56 \pm 2.32$ & $50.60 \pm 2.04$ \\
+Training run, fixed partition & 4 & $58.04 \pm 0.37$ & $52.15 \pm 0.31$ \\
+Data partition                & 5 & $56.56 \pm 2.32$ & $50.60 \pm 2.04$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-However, repeating the split with five different partitions of the same 159
-modules gives $56.56 \pm 2.32$\,\%, a standard deviation six times larger than
-the one observed between training runs of a fixed partition. Measuring the
-model on individual unseen modules makes the origin of that spread explicit:
-recovery varies between 29.2\,\% and 63.0\,\% depending on the module, with a
-standard deviation of 7.86 percentage points (Fig.~\ref{fig:variabilidad}),
-which places the standard error of a mean over five test modules at 3.5 points.
-The dominant uncertainty in this work is therefore which detectors happen to
-fall in the test partition, not which weights the optimiser converged to.
+Repeating the experiment with five different partitions of the same 159
+modules, however, gives $56.56 \pm 2.32$\,\%, a standard deviation six times
+larger. Evaluating the model on individual unseen modules explains why:
+recovery ranges from
+29.2\,\% to 63.0\,\% depending on which detector it is measured on, with a
+standard deviation of 7.86 percentage points across modules. With five modules
+in the test partition, that places the standard error of the reported mean at
+3.5 points.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{variabilidad_modulos}
-\caption{Recovery at the 90th percentile measured on individual unseen
-training modules. The spread between detectors (standard deviation of 7.86
-percentage points) is an order of magnitude larger than the spread between
-training runs on a fixed partition.}
-\label{fig:variabilidad}
-\end{figure}
+The consequence is worth stating plainly, because it conditions how every other
+number here should be read. Comparisons between models are paired and therefore
+precise: the same modules, the same events and the same masks, with
+differences of tenths of a point resolvable. Absolute performance on a detector
+that has never been measured is far less certain, and the dominant term is not
+the training procedure but which detectors happen to fall in the test
+partition. We therefore take $56.56 \pm 2.32$\,\% as the figure that describes
+what the method achieves on unseen hardware.
 
-Performance is not uniform across the detector.
-Fig.~\ref{fig:mapa} maps the recovery of each of the 61 channels. The worst
-channel of the reference band averages $42.29 \pm 4.45$\,\% over the four runs,
-with individual values spanning 37.54\,\% to 47.76\,\%; the channel attaining
-that minimum is not the same in every run, alternating between
-$\mathrm{Ich}\ 60$ and $\mathrm{Ich}\ 31$.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.86\textwidth]{mapa_recuperacion}
-\caption{Per-channel recovery over the 61 active sensors. Left: recovery at the
-90th percentile. Right: mean recovery. Channels at the perimeter of the
-hexagonal array recover less charge than central ones.}
-\label{fig:mapa}
-\end{figure*}
-
-The effect of imputation on the reconstructed image is shown in
-Fig.~\ref{fig:floodmap-res}, which compares the flood map of a test module with one
-channel suppressed against the same map after imputation.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.86\textwidth]{floodmap}
-\caption{Flood map of a test module. From left to right: reference map with all
-channels active, map with one channel suppressed, and map recovered by the
-model.}
-\label{fig:floodmap-res}
-\end{figure*}
+The same caution applies to the worst channel of the array, which we had
+initially considered as a robustness figure. Over four independent runs it
+averages $42.29 \pm 4.45$\,\%, spanning 37.54\,\% to 47.76\,\%, and the channel
+attaining that minimum is not even the same in every run. As a single-point
+statistic over 61 channels it is too noisy to support any claim, and we do not
+use it as such.
 
 \subsection{Multiple Simultaneous Failures}
+\label{sec:res-multidead}
 
 Training with a single suppressed channel does not transfer to multiple
-failures. Table~\ref{tab:multidead} reports recovery averaged over
-$k = 1 \dots 4$ suppressed channels for the three spatial regimes. A model
-trained with $k = 1$ falls to 33.74\,\% on contiguous failures, and its
-standard deviation across runs rises to 11.68 points, since it performs
-adequately at $k = 1$ and collapses at $k = 4$. Models trained with $k$ drawn
-from 1 to 4 stay between 53\,\% and 58\,\% in all three regimes, with standard
-deviations below 0.7 points.
+failures. Table~\ref{tab:multidead} reports recovery averaged over $k=1\dots4$
+suppressed channels in the three regimes of
+Section~\ref{sec:regimes}. A model trained on single failures drops to
+33.74\,\% on contiguous ones, and its standard deviation across runs rises to
+11.68 points because it performs adequately at $k=1$ and collapses at $k=4$.
+Models trained with $k$ drawn from 1 to 4 stay between 52\,\% and 59\,\% in
+every regime, with standard deviations below 0.7 points.
 
 \begin{table}[t]
 \centering
 \caption{Recovery at the 90th percentile by failure regime, averaged over
-$k = 1 \dots 4$ suppressed channels. Campaign of 20 seeds and \num{200000}
-events per file.}
+$k=1\dots4$ suppressed channels, over a campaign of 20 mask seeds.}
 \label{tab:multidead}
 \begin{tabular}{@{}lccc@{}}
 \toprule
@@ -930,79 +1012,97 @@ Near, $k{=}1\!-\!4$ ($n{=}3$)
 \end{tabular}
 \end{table}
 
-Between the two multi-channel regimes, however, the differences are small. The
-model trained on the \emph{near} regime exceeds the one trained on contiguous
-clusters by 1.99 points in its own regime, a difference of 2.9 standard
-deviations, while the two are indistinguishable on contiguous failures
-($-0.14$ points) and on scattered ones ($+0.99$ points, 1.3 standard
-deviations). Fig.~\ref{fig:regimenes} shows the three regimes side by side and
-Fig.~\ref{fig:multidead} the degradation as $k$ grows.
+The gap between the first row and the other two is the largest effect we
+measured: 24.6 points on contiguous failures and 16.3 on the intermediate
+regime. Exposing the model to multiple failures during training is what
+determines whether it survives them, and the cost of doing so is negligible,
+since the multi-failure models lose nothing at $k=1$.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{regimenes}
-\caption{Recovery by failure regime for models trained under each of the three
-mask-generation strategies.}
-\label{fig:regimenes}
-\end{figure}
+Which regime is used for that training matters far less. The model trained on
+the intermediate regime exceeds the one trained on contiguous clusters by 1.99
+points in its own regime, a difference of 2.9 standard deviations, and the two
+are indistinguishable on contiguous failures ($-0.14$ points) and on scattered
+ones ($+0.99$ points, 1.3 standard deviations). Fig.~\ref{fig:multidead} shows
+how recovery degrades as $k$ grows: the contiguous regime is consistently the
+hardest, which is expected, since a compact group of failures leaves its
+members without healthy neighbours to draw on.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{multidead}
 \caption{Recovery as a function of the number of simultaneously suppressed
-channels, for models trained with a single channel and with one to four.}
+channels, for a model trained on single failures and one trained on one to four.}
 \label{fig:multidead}
 \end{figure}
 
 \subsection{Physical Fidelity}
+\label{sec:res-fidelity}
 
-Beyond the position error, we measured whether imputation preserves the two
-physical quantities the detector is built to deliver.
+Recovering the position is not the same as restoring a physically admissible
+signal, so we measured the two quantities the detector is built to deliver.
 
 The point-spread function of the flood map narrows from a macro-averaged FWHM
-of 0.1656\,mm with a suppressed channel to 0.0847\,mm after imputation, a
-recovery of 48.82\,\% of the induced blur (Fig.~\ref{fig:resolucion}). The
-positional bias falls from 0.1262\,mm to 0.0218\,mm, a recovery of 82.71\,\%.
+of 0.1656\,mm with a suppressed channel to 0.0847\,mm after imputation
+(Fig.~\ref{fig:resolucion}), recovering 48.8\,\% of the blur the fault
+introduces. The positional bias behaves better than the width: it falls from
+0.1262\,mm to 0.0218\,mm, a recovery of 82.7\,\%. The imputed spot is therefore
+almost correctly centred, and what remains is a residual spread.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{resolucion}
-\caption{Point-spread function of the flood map with all channels active, with
-one channel suppressed, and after imputation.}
+\caption{Point-spread function of the flood map with all channels operational,
+with one channel suppressed, and after imputation.}
 \label{fig:resolucion}
 \end{figure}
 
-The energy spectrum is preserved to a comparable degree and with little
-dependence on the region of the crystal: spectral recovery is 83.25\,\% in the
-core, 84.32\,\% in the middle band and 81.19\,\% at the edge, for a global
-value of 82.92\,\% (Fig.~\ref{fig:espectro}). The residual shift of the
-photopeak stays between 0.20 and 0.24 ADC units across the three zones.
+The energy spectrum is preserved to a comparable degree and, unlike the
+per-channel error, with little dependence on the region of the crystal:
+spectral recovery is 83.3\,\% in the core, 84.3\,\% in the middle band and
+81.2\,\% at the edge, for a global 82.9\,\% (Fig.~\ref{fig:espectro}). The
+residual shift of the photopeak stays between 0.20 and 0.24 ADC units in the
+three zones, against shifts an order of magnitude larger before correction.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{espectro}
-\caption{Energy spectrum by crystal zone, comparing the original distribution
-with the degraded and imputed ones. Zones are defined by concentric hexagonal
-bands.}
+\caption{Energy spectrum by crystal zone for the original, degraded and imputed
+events. Zones are concentric hexagonal bands from the centre to the perimeter.}
 \label{fig:espectro}
 \end{figure}
 
-\subsection{Physics-Informed Losses and Ensembles}
+\subsection{Variants That Did Not Improve the Model}
+\label{sec:res-negative}
 
-Adding a term that penalises the displacement of the reconstructed position
-leaves recovery unchanged at 58.23\,\% against 58.02\,\% for the reference. Adding a term on
-the energy spectrum degrades it to 46.04\,\%, with the bias changing sign.
-Heteroscedastic prediction of mean and variance reaches 20.08\,\%.
+Several of the alternatives described in
+Sections~\ref{sec:arch} and \ref{sec:training} failed to improve on the
+reference, and the reasons are informative.
 
-Averaging the outputs of three independently trained replicas raises recovery
-to 58.69\,\%, and averaging three different architectures raises it to
-58.73\,\%, against $58.04 \pm 0.37$\,\% for a single model.
+Adding the position error to the loss changes recovery from 58.0\,\% to
+58.2\,\%, within the run-to-run band. This is not surprising in hindsight:
+charge and position are related monotonically for a given channel, so the term
+is largely redundant with the MSE already being minimised.
 
-% NOTA (24/08): la subseccion "Application to Faulty Modules" se ha retirado
-% junto con el estadistico z-score de Metodos. No se menciona en la
-% introduccion y el trabajo no lo usa, asi que quedaba huerfano. El material
-% (ROC, TPR de 1.00 a severidad total, etiquetado de 18/62 modulos) sigue en
-% reports/bad_validation.json por si se decide reincorporarlo.
+Adding a term on the energy spectrum is actively harmful, dropping recovery to
+46.0\,\% and inverting the sign of the bias. The cause is the form of the term
+rather than the quantity it targets. Spectral agreement is computed over a
+batch, so the penalty acts on a signed average, and the model can reduce it by
+letting errors of opposite sign cancel between events. It optimises the
+aggregate while degrading every individual event, which is precisely what the
+per-event metrics detect. Any physics-informed term for this problem needs to
+be computed per event.
+
+Predicting a variance alongside the mean, trained with a Gaussian negative
+log-likelihood, reaches 20.1\,\%. The likelihood lets the model reduce its loss
+by declaring large uncertainty instead of improving the prediction, and with no
+constraint tying the variance to a calibration target it takes that route.
+
+Ensembling, however, does help, if modestly. Averaging three independently
+trained replicas raises recovery to 58.69\,\% and averaging three different
+architectures to 58.73\,\%, against $58.04 \pm 0.37$\,\% for a single model.
+Both are the only variants we found that exceed the reference band, and the
+gain is around 0.7 points at three times the inference cost.
+
 
 % ---------------------------------------------------------------------
 \section{Discussion}
