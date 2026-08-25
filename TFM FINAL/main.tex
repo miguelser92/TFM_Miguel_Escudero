@@ -412,17 +412,18 @@ detector as prior knowledge instead of leaving it implicit in the data.
 The evaluation is framed along the same lines. The error in the estimated
 charge is the quantity the model minimises, but on its own it says little
 about the usefulness of the method: what matters is how much is recovered of
-what the fault degrades. Three physical effects are therefore measured: the
+what the fault degrades. Two physical effects are therefore measured: the
 displacement of the reconstructed position, which is the direct consequence
-on the flood map; the conservation of the energy spectrum, which determines
-whether the restored signal is physically admissible; and the spatial
-resolution. All of this on modules the network has not seen during training,
+on the flood map, and the conservation of the energy spectrum, which
+determines whether the restored signal is physically admissible. All of this
+on modules the network has not seen during training,
 and compared against classical interpolation methods in order to establish
 that the complexity of the model is warranted. The behaviour of the method
 when more than one channel fails is also examined, with particular attention
 to contiguous groups, which are what is observed in real faulty detectors
-and also the least favourable case, since when an entire region disappears
-the lost sensor is left without healthy neighbours to draw on.
+and the case that displaces the reconstructed position the most, since when an
+entire region disappears the lost sensors are left without healthy immediate
+neighbours to draw on.
 
 % ---------------------------------------------------------------------
 \section{Materials and Methods}

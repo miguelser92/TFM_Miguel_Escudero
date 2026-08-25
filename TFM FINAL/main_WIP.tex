@@ -426,17 +426,18 @@ detector as prior knowledge instead of leaving it implicit in the data.
 The evaluation is framed along the same lines. The error in the estimated
 charge is the quantity the model minimises, but on its own it says little
 about the usefulness of the method: what matters is how much is recovered of
-what the fault degrades. Three physical effects are therefore measured: the
+what the fault degrades. Two physical effects are therefore measured: the
 displacement of the reconstructed position, which is the direct consequence
-on the flood map; the conservation of the energy spectrum, which determines
-whether the restored signal is physically admissible; and the spatial
-resolution. All of this on modules the network has not seen during training,
+on the flood map, and the conservation of the energy spectrum, which
+determines whether the restored signal is physically admissible. All of this
+on modules the network has not seen during training,
 and compared against classical interpolation methods in order to establish
 that the complexity of the model is warranted. The behaviour of the method
 when more than one channel fails is also examined, with particular attention
 to contiguous groups, which are what is observed in real faulty detectors
-and also the least favourable case, since when an entire region disappears
-the lost sensor is left without healthy neighbours to draw on.
+and the case that displaces the reconstructed position the most, since when an
+entire region disappears the lost sensors are left without healthy immediate
+neighbours to draw on.
 
 % ---------------------------------------------------------------------
 \section{Materials and Methods}
@@ -633,18 +634,37 @@ We trained with the mean squared error (MSE) computed over the full 61-channel
 output rather than the suppressed entries alone,
 %
 \begin{equation}
-\mathcal{L} = \frac{1}{61} \sum_{c=1}^{61}
+\mathrm{Loss}_{\mathrm{MSE}} = \frac{1}{61} \sum_{c=1}^{61}
               \left( \hat{y}_{c} - y_{c} \right)^{2},
 \label{eq:loss}
 \end{equation}
 %
 which treats the task as ordinary regression and keeps the healthy channels as
-a consistency constraint. We selected this loss after comparing it against the
-mean absolute error (MAE) and the Huber loss \cite{huber1964} with
-$\delta = 0.1$.
+a consistency constraint.
+
+We chose it after comparing it against the mean absolute error (MAE) and the
+Huber loss \cite{huber1964}, which interpolates between the two by behaving
+quadratically for small residuals and linearly for large ones,
+%
+\begin{equation}
+\mathrm{Loss}_{\delta}(e) =
+\begin{cases}
+\tfrac{1}{2} e^{2} & \text{if } \lvert e \rvert \le \delta, \\[2pt]
+\delta \left( \lvert e \rvert - \tfrac{1}{2}\delta \right) & \text{otherwise,}
+\end{cases}
+\label{eq:huber}
+\end{equation}
+%
+with $e = \hat{y}_{c} - y_{c}$ and $\delta = 0.1$. The motivation for testing it
+is that the targets contain legitimate extreme values, since a suppressed
+channel that was the brightest of its event has a target above unity, and a
+quadratic penalty weights those cases heavily. In practice the MSE gave the
+lower bias, which is the property we were unwilling to trade, so it is the loss
+used throughout.
+
 We also tested two physics-informed variants, one penalising the displacement
 of the reconstructed position and one penalising the shift of the energy
-spectrum; both are reported in Section~3.
+spectrum; both are reported in Section~\ref{sec:res-negative}.
 
 Table~\ref{tab:hyperparams} lists the configuration. Two aspects of the
 procedure are worth making explicit. First, the training set does not fit in
@@ -1068,6 +1088,7 @@ runs. Recovery is a ratio, and a fault that causes more damage offers more
 damage to undo, so a larger fraction repaired can coexist with a larger
 residual error. Scattered failures are the least damaging in absolute terms
 and, at the same time, the hardest to correct proportionally.
+Fig.~\ref{fig:multidead} shows the same behaviour as a function of $k$.
 
 \begin{table}[t]
 \centering
