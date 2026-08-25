@@ -749,12 +749,11 @@ residual error. Recovery is the fraction of the damage the model removes,
   \left( 1 - \frac{\Delta R_{\mathrm{imp}}}{\Delta R_{\mathrm{deg}}} \right),
 \label{eq:recovery}
 \end{equation}
-
-%Declara percentil 90 como siglas y cambialo en todo por P90, más legible. [Checked]
+%
 with both terms evaluated at the same quantile and over the same population of
 events. A value of 100\,\% would mean the imputed position coincides with the
 intact one, and 0\,\% that imputing changed nothing. We report the value at the
-90th percentile (P90), which weights the difficult events, and also the mean.
+90th percentile, which weights the difficult events, and also the mean.
 Averaging over the 61 channels gives the macro figures used throughout, and the
 minimum over channels characterises the worst case. Since a ratio says nothing
 about the magnitude of what remains, we also report
@@ -785,21 +784,15 @@ $\lVert(\overline{\Delta x}, \overline{\Delta y})\rVert$, which separates a
 systematic displacement of the map from a symmetric blurring around the correct
 position.
 
-%Esto no lo veo del todo pero bueno, osea entiendo el point pero explica mejor el punto de porque usamos el FWMH. [Checked]
-Reporting the width alongside the percentile serves a specific purpose: it
-splits the error into two components that behave differently. The bias is a
-systematic shift of the whole distribution and is in principle correctable,
-because it is predictable from the surviving channels. The width is random
-scatter around that shift, and no amount of information from the neighbours
-removes it. A model can be good at one and poor at the other, so we report them
-separately.
-
-One clarification is needed because the name invites it. This FWHM is not the
-spatial resolution of the detector: it is computed on the error that the fault
-introduces, not on the point-spread function of the system, and the two differ
-by about two orders of magnitude. It is also not independent of
-Eq.~\ref{eq:recovery}, since both summarise the same distribution of
-positioning errors.
+We stress that this is not the spatial resolution of the detector. It does not
+come from fitting the spots of the flood map, and it is measured on the error
+that the fault introduces, not on the point-spread function of the system;
+values of the two quantities differ by about two orders of magnitude and are
+not comparable. Nor is it independent of the recovery of
+Eq.~\ref{eq:recovery}: both summarise the same distribution of positioning
+errors, one by a percentile and the other by its width, and we report both
+because a method could reduce the typical error while leaving a long tail, or
+the reverse.
 
 The second concerns energy. Suppressing a channel removes part of the collected
 light, so the reconstructed energy of the event falls and the photopeak shifts
@@ -813,24 +806,14 @@ bands, because the absorbing adhesive on the lateral faces makes the periphery
 behave differently from the centre \cite{conde_minimization_2014} and an
 average over the whole crystal would hide that difference.
 
-%Exceso de honestidad, Lidia hace algo asi? no hace falta decirlo todo no?. [Checked]
-Every model is evaluated on the same modules, the same events and the same
-masks, so that differences between models are measured on paired samples.
-Section~\ref{sec:res-variability} quantifies how far that precision extends.
-
-%Acabo de ver que Lidia habla de implementation details, convendría poner una pequeña seccion similar, todo se ha hecho con python con datos reales de [Checked]
-%en Python, con Pytorch, Matplotlib, etc.. además se ha usado una 1660 super y Ryzen 5 3600x. [Checked]
-\subsection{Implementation Details}
-\label{sec:implementation}
-
-We implemented the models in PyTorch, and the data pipeline, the evaluation and
-the figures in Python with NumPy, SciPy and Matplotlib. Training ran on a single
-NVIDIA GeForce GTX 1660 SUPER with an AMD Ryzen 5 3600X host. On that hardware a
-complete run of the reference model takes about two and a half hours, and
-evaluating it over the five test modules about eighty minutes. Each run stores
-its configuration, its preprocessing parameters and the commit of the code
-alongside the weights, so that any figure reported here can be traced back to
-the run that produced it.
+Finally, a note on what these numbers can and cannot support. Comparisons
+between models are paired, in that every model is evaluated on the same
+modules, the same events and the same masks, so relative differences are
+measured precisely. Absolute performance on a new detector, however, is a
+different matter, because modules differ from one another far more than
+training runs do.
+We quantified both sources of variation separately, and Section~3 reports them
+alongside the results they qualify.
 
 
 % ---------------------------------------------------------------------
@@ -838,32 +821,30 @@ the run that produced it.
 \label{sec:results}
 % ---------------------------------------------------------------------
 
-%Este parrafo lo veo un poco inutil no se se puede reducir, e introducir en el parrafo siguiente. [Checked]
-%Lo de las evaluation campagnes ni lo menciones no creo que sea necesario. [Checked]
+Unless stated otherwise, every figure in this section refers to the reference
+model evaluated on the five held-out modules. Results are quoted as
+mean $\pm$ standard deviation over independent training runs, and we state the
+sample size in each case. Evaluation campaigns differ slightly in the number of
+events drawn per test file. We measured that effect by evaluating the same
+model under two of them and found it below 0.3 percentage points, well under
+the variability reported here, so the text does not distinguish between them.
+
 \subsection{Imputation Accuracy}
 \label{sec:res-accuracy}
 
-%esta muy bien pero si es para un solo canal esta seccion dejarlo claro con un single y n=4 entiendo que de modelos, para dejarlo claro. [Checked]
-This section reports a single suppressed channel, which is the failure mode the
-method targets; the multi-channel case follows in
-Section~\ref{sec:res-multidead}. Every value is the mean over four
-independently trained models evaluated on the five held-out modules, and the
-stated deviation is the spread between those models.
-
-The reference model recovers the charge of a suppressed channel with a mean
-absolute error of $0.6228 \pm 0.0064$ in normalised units. Expressed relative to
+The model recovers the charge of a suppressed channel with a mean absolute
+error of $0.6228 \pm 0.0064$ in normalised units ($n=4$). Expressed relative to
 the mean charge that each channel collects, this amounts to a 29.1\,\% error,
 and it is not uniform across the array: 25.9\,\% for channels in the core of the
 crystal against 34.0\,\% at the edge. The absorbing adhesive on the lateral
 faces accounts for that gap, since peripheral channels collect less light and
 their neighbours carry correspondingly less information about them.
 
-%Perfecto he cambiado una cosilla para hacerlo más natural. 
 The bias stays at $-0.062 \pm 0.023$, that is, below a tenth of the MAE. This
 matters because the failure mode we were guarding against is a model that
 minimises its error by predicting conservatively low values, which would look
 acceptable in the MAE and would systematically displace the reconstructed
-position but does not happen in the experiments. 
+position. It does not happen.
 
 \subsection{Recovery of the Reconstructed Position}
 \label{sec:res-position}
@@ -872,31 +853,26 @@ Charge error is an intermediate quantity. What reaches the image is the
 displacement of the centroid, and Table~\ref{tab:position} gives it in
 millimetres. Suppressing a channel moves the reconstructed position of the
 affected events by a median of 0.099\,mm and, for the worst tenth of them, by
-0.666\,mm. After imputation those figures fall to 0.047\,mm and 0.283\,mm, so
-the residual displacement at P90 is 7.5\,\% of the 3.75\,mm sensor pitch. The
-degraded column is identical across the four models, as it must be, since it
-does not depend on the imputation; it serves as a consistency check on the
-evaluation.
+0.666\,mm. After imputation those figures fall to 0.047\,mm and 0.288\,mm. The
+residual displacement at the 90th percentile is therefore 7.7\,\% of the
+3.75\,mm sensor pitch.
 
 \begin{table}[t]
 \centering
 \caption{Displacement of the reconstructed position with respect to the intact
-event, before and after imputation. Mean $\pm$ standard deviation over four
-independently trained models. The degraded column does not depend on the model
-and is therefore identical in the four.}
+event, before and after imputation, in millimetres.}
 \label{tab:position}
 \begin{tabular}{@{}lccc@{}}
 \toprule
- & \textbf{Degraded (mm)} & \textbf{Imputed (mm)} & \textbf{Recovery (\%)} \\
+ & \textbf{Degraded} & \textbf{Imputed} & \textbf{Recovery} \\
 \midrule
-Median & 0.099 & $0.047 \pm 0.001$ & $50.22 \pm 1.82$ \\
-Mean   & 0.241 & $0.117 \pm 0.001$ & $52.15 \pm 0.31$ \\
-P90    & 0.666 & $0.283 \pm 0.004$ & $58.04 \pm 0.37$ \\
+Median          & 0.099 & 0.047 & 52.1\,\% \\
+Mean            & 0.241 & 0.118 & 51.0\,\% \\
+90th percentile & 0.666 & 0.288 & 56.8\,\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-%Es 
 Fig.~\ref{fig:linediff} shows what this means for the image. Each panel is the
 difference between a flood map and the intact reference, averaged over failures
 of the sensors along one line of the array. Without correction the difference
@@ -954,13 +930,13 @@ after imputing it.}
 
 Table~\ref{tab:architectures} compares the architectures under a common
 campaign. The two models without a geometric prior reach 51.39\,\% and
-48.92\,\% recovery at P90. The smallest graph model reaches
+48.92\,\% recovery at the 90th percentile. The smallest graph model reaches
 58.0\,\% with an order of magnitude fewer parameters than either of them.
 
 \begin{table}[t]
 \centering
 \caption{Architecture comparison under a common evaluation campaign. Recovery
-at P90 and on average, in per cent; MAE in normalised units.}
+at the 90th percentile and on average, in per cent; MAE in normalised units.}
 \label{tab:architectures}
 \begin{tabular}{@{}lrccc@{}}
 \toprule
@@ -1011,11 +987,11 @@ layers propagate information only a few hops.
 
 \subsection{Generalisation and Variability}
 \label{sec:res-variability}
-%Esta intro poetica?? Mejor algo como, para hacer un analisis estadistico riguroso de los modelos.... [Checked]
-To characterise the uncertainty of the reported figures we measured the two
-sources of variability separately (Table~\ref{tab:reference}).
+
+A single figure of merit says little without knowing how much it moves, so we
+measured the two sources of variability separately (Table~\ref{tab:reference}).
 Across four independent training runs on a fixed partition, differing in the
-global seed and in the order of the modules, recovery at P90 is
+global seed and in the order of the modules, recovery at the 90th percentile is
 $58.04 \pm 0.37$\,\%.
 
 \begin{table}[t]
@@ -1042,23 +1018,21 @@ standard deviation of 7.86 percentage points across modules. With five modules
 in the test partition, that places the standard error of the reported mean at
 3.5 points.
 
-%Esta frase no me gusta tampoco, Is worth to be developed/explained/discussed... [Checked]
-The two figures answer different questions. Comparisons between models are
-paired --- the same modules, the same events and the same masks --- and resolve
-differences of tenths of a point. Absolute performance on a detector
+The consequence is worth stating plainly, because it conditions how every other
+number here should be read. Comparisons between models are paired and therefore
+precise: the same modules, the same events and the same masks, with
+differences of tenths of a point resolvable. Absolute performance on a detector
 that has never been measured is far less certain, and the dominant term is not
 the training procedure but which detectors happen to fall in the test
-partition. We therefore take $56.56 \pm 2.32$\,\% as the figure that describes %%%La frase final esta bien pero todo lo anterior esta un poco lioso. 
+partition. We therefore take $56.56 \pm 2.32$\,\% as the figure that describes
 what the method achieves on unseen hardware.
 
-%Que significa to use as a claim, osea demuestralo pero tampoco juzgues aqui, que el [Checked]
-%que lo lea diga si esa varianza es legal o demasiado. 
-The minimum over the 61 channels behaves in the same way, only more so. Over
-four independent runs it averages $42.29 \pm 4.45$\,\%, spanning 37.54\,\% to
-47.76\,\%, and the channel that attains it is not the same in every run:
-$\mathrm{Ich}\ 60$ in two of them and $\mathrm{Ich}\ 31$ in the other two. Its
-deviation across runs is twelve times that of the macro average computed over
-the same four runs.
+The same caution applies to the worst channel of the array, which we had
+initially considered as a robustness figure. Over four independent runs it
+averages $42.29 \pm 4.45$\,\%, spanning 37.54\,\% to 47.76\,\%, and the channel
+attaining that minimum is not even the same in every run. As a single-point
+statistic over 61 channels it is too noisy to support any claim, and we do not
+use it as such.
 
 \subsection{Multiple Simultaneous Failures}
 \label{sec:res-multidead}
@@ -1074,7 +1048,7 @@ every regime, with standard deviations below 0.7 points.
 
 \begin{table}[t]
 \centering
-\caption{Recovery at P90 by failure regime, averaged over
+\caption{Recovery at the 90th percentile by failure regime, averaged over
 $k=1\dots4$ suppressed channels, over a campaign of 20 mask seeds.}
 \label{tab:multidead}
 \begin{tabular}{@{}lccc@{}}
@@ -1108,7 +1082,7 @@ readings point in opposite directions (Table~\ref{tab:regimes-k}). In recovery,
 contiguous failures are the \emph{easiest} case for every $k \ge 2$: 57.7\,\%
 at $k=4$ against 50.7\,\% for scattered ones. In millimetres they are the
 worst: a contiguous group of four displaces the centroid by 1.480\,mm at the
-P90, twice as much as four scattered channels, and after imputation
+90th percentile, twice as much as four scattered channels, and after imputation
 still leaves 0.628\,mm against 0.366\,mm. Both statements come from the same
 runs. Recovery is a ratio, and a fault that causes more damage offers more
 damage to undo, so a larger fraction repaired can coexist with a larger
@@ -1120,7 +1094,7 @@ Fig.~\ref{fig:multidead} shows the same behaviour as a function of $k$.
 \centering
 \caption{Recovery and residual displacement by regime as the number of
 suppressed channels grows, for the model trained on the intermediate regime
-($n=3$). Displacements at P90, in millimetres.}
+($n=3$). Displacements at the 90th percentile, in millimetres.}
 \label{tab:regimes-k}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
@@ -1151,47 +1125,21 @@ channels, for a model trained on single failures and one trained on one to four.
 Recovering the position is not the same as restoring a physically admissible
 signal, so we measured the two quantities the detector is built to deliver.
 
-Separating the positioning error into its two components gives a result that a
-single aggregate figure would hide (Table~\ref{tab:fidelity}). The systematic
-shift falls from 0.1262\,mm to $0.0220 \pm 0.0020$\,mm, so imputation removes
-$82.6 \pm 1.6$\,\% of it. The random spread, measured as the
-Gaussian-equivalent FWHM of Eq.~\ref{eq:fwhm}, falls from 0.1656\,mm to
-$0.0872 \pm 0.0015$\,mm, a reduction of only $47.3 \pm 0.9$\,\%
-(Fig.~\ref{fig:resolucion}).
-
-The asymmetry between the two is consistent with what the model can and cannot
-know. A systematic shift is predictable from the surviving channels, because it
-depends on which channel is missing and on where in the crystal the event
-occurred, both of which the network sees. The random component is the part of
-the lost charge that the neighbours do not determine, and no amount of
-information from them recovers it. After imputation the error distribution is
-therefore almost centred on the true position, and what remains is scatter
-around it.
-
-\begin{table}[t]
-\centering
-\caption{Components of the positioning error before and after imputation. Mean
-$\pm$ standard deviation over three independently trained models; the degraded
-column does not depend on the model.}
-\label{tab:fidelity}
-\begin{tabular}{@{}lccc@{}}
-\toprule
- & \textbf{Degraded (mm)} & \textbf{Imputed (mm)} & \textbf{Removed (\%)} \\
-\midrule
-Systematic shift & 0.1262 & $0.0220 \pm 0.0020$ & $82.6 \pm 1.6$ \\
-Random spread    & 0.1656 & $0.0872 \pm 0.0015$ & $47.3 \pm 0.9$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+The spread of the positioning error, measured as the Gaussian-equivalent FWHM
+of Eq.~\ref{eq:fwhm}, narrows from 0.1656\,mm with a suppressed channel to
+$0.0872 \pm 0.0015$\,mm after imputation ($n=3$, Fig.~\ref{fig:resolucion}),
+so imputation removes $47.3 \pm 0.9$\,\% of the blur the fault introduces. The
+bias behaves better than the width: it falls from 0.1262\,mm to
+$0.0220 \pm 0.0020$\,mm, a reduction of $82.6 \pm 1.6$\,\%. The error
+distribution after imputation is therefore almost centred on the true position,
+and what remains is a symmetric spread rather than a systematic displacement.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{resolucion}
-\caption{Distribution of the positioning error introduced by a suppressed
-channel, before and after imputation. There are two conditions and not three:
-the intact event is the reference against which the error is measured, so its
-error is zero by construction. The width of each distribution is the quantity
-reported as FWHM in Eq.~\ref{eq:fwhm}.}
+\caption{Distribution of the positioning error with one channel suppressed and
+after imputation. The width of each distribution is the quantity reported as
+FWHM in Eq.~\ref{eq:fwhm}.}
 \label{fig:resolucion}
 \end{figure}
 
@@ -1199,9 +1147,8 @@ The energy spectrum is preserved to a comparable degree, with a global spectral
 recovery of $84.7 \pm 0.9$\,\% ($n=3$, Fig.~\ref{fig:espectro}). Here the
 core-to-edge gradient reappears: $87.4 \pm 1.8$\,\% in the core,
 $85.6 \pm 0.7$\,\% in the middle band and $81.2 \pm 0.3$\,\% at the edge. The
-residual shift of the photopeak stays at $0.21 \pm 0.02$ ADC units across the
-three zones, against the 1.6 to 1.9 ADC units that the fault introduces before
-correction.
+residual shift of the photopeak stays at $0.21 \pm 0.005$ ADC units, an order
+of magnitude below the shift the fault introduces.
 
 \begin{figure}[t]
 \centering

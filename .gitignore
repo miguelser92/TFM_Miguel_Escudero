@@ -59,5 +59,7 @@ TFM FINAL/*.out
 TFM FINAL/*.toc
 TFM FINAL/*.synctex*
 TFM FINAL/.build/
+# los checkpoints del WIP: se versiona el .tex, no el PDF
+TFM FINAL/_previas/*.pdf
 TFM FINAL/*.synctex.gz
 # el PDF compilado SI se versiona: es lo que se le pasa al director
