@@ -539,12 +539,11 @@ whereas one surrounded by other dead sensors cannot.
 We reproduced those patterns with three mask-generation strategies, illustrated
 in Fig.~\ref{fig:regimenes-diagrama}. In the \emph{cluster} regime the $k$
 suppressed channels grow outward from the seed so that they remain contiguous,
-which is the least favourable case: an entire region of the array disappears
-and the affected sensors are left without healthy neighbours to draw on. In the
-\emph{scatter} regime they are drawn uniformly across the array, so each
-failure is effectively isolated. The \emph{near} regime sits between the two:
-the $k$ channels lie within two hops of the seed without being required to
-touch. That intermediate case is the one we observed most often in real faulty
+so an entire region of the array disappears at once and the affected sensors
+are left without healthy immediate neighbours. In the \emph{scatter} regime
+they are drawn uniformly across the array, so each failure is effectively
+isolated. The \emph{near} regime sits between the two: the $k$ channels lie
+within two hops of the seed without being required to touch. That intermediate case is the one we observed most often in real faulty
 modules, typically two or three sensors separated by one or two positions, and
 it is the reason we introduced it rather than settling for the two extremes.
 
@@ -695,13 +694,24 @@ much of the degradation caused by the fault is undone. We therefore evaluated
 on three levels: the charge itself, the position it produces, and the physical
 quantities the detector is built to deliver.
 
-At the charge level we report the MAE on the imputed channel in normalised
-units, together with the bias, which acts as a guardrail: a model
-can attain a low absolute error while systematically under-predicting, and the
-bias exposes that. Because the normalised error is hard to interpret on its
-own, we also express it relative to the mean charge of each channel. This last
-figure is sensitive to the number of events used to compute the denominator, so
-we evaluated numerator and denominator on the same sample throughout.
+At the charge level we report, over the $N$ events in which channel $c$ was
+suppressed, the MAE and the bias
+%
+\begin{equation}
+\mathrm{MAE}_{c} = \frac{1}{N} \sum_{i=1}^{N} \lvert \hat{y}_{i} - y_{i} \rvert,
+\qquad
+\mathrm{bias}_{c} = \frac{1}{N} \sum_{i=1}^{N} (\hat{y}_{i} - y_{i}),
+\label{eq:mae}
+\end{equation}
+%
+both in the normalised units of Eq.~\ref{eq:norm}. The bias acts as a
+guardrail. A model can attain a low MAE while predicting systematically low,
+which would displace every reconstructed position in the same direction; only
+the signed average reveals it. Because a normalised error is hard to interpret
+on its own, we also express the MAE relative to the mean charge that the
+channel collects. That ratio is sensitive to the number of events used for the
+denominator, so we computed numerator and denominator on the same sample
+throughout.
 
 The position level is our primary metric, since it is the one that reaches the
 image. For each event we computed the interaction position by CoG weighted by
@@ -734,12 +744,35 @@ imputed position is to the true one, but not whether the restored signal is
 physically admissible. A model could place events correctly on average while
 distorting the quantities the detector is built to measure.
 
-The first analysis concerns spatial resolution. Each of the 364 etched
-structures produces a spot in the flood map, and the width of that spot sets
-how finely two interactions can be told apart \cite{moses2011}. We therefore
-fitted the spot and measured its FWHM in three conditions --- intact, degraded
-and imputed --- so that the improvement can be read in the same units in which
-detector resolution is normally quoted.
+The first analysis characterises the \emph{spread} of the positioning error
+rather than its typical size. Recovery reports a percentile of $\Delta R$; here
+we summarise the same underlying distribution by its width, taking the error
+components $\Delta x$ and $\Delta y$ and computing a Gaussian-equivalent full
+width at half maximum from a robust scale estimate,
+%
+\begin{equation}
+\mathrm{FWHM} = 2.3548 \cdot \tfrac{1}{2}
+  \left( \hat{\sigma}_{\Delta x} + \hat{\sigma}_{\Delta y} \right),
+\qquad
+\hat{\sigma}_{v} = 1.4826 \cdot \mathrm{MAD}(v),
+\label{eq:fwhm}
+\end{equation}
+%
+where MAD denotes the median absolute deviation, used so that a few extreme
+events do not drive the estimate. Alongside it we report the bias
+$\lVert(\overline{\Delta x}, \overline{\Delta y})\rVert$, which separates a
+systematic displacement of the map from a symmetric blurring around the correct
+position.
+
+We stress that this is not the spatial resolution of the detector. It does not
+come from fitting the spots of the flood map, and it is measured on the error
+that the fault introduces, not on the point-spread function of the system;
+values of the two quantities differ by about two orders of magnitude and are
+not comparable. Nor is it independent of the recovery of
+Eq.~\ref{eq:recovery}: both summarise the same distribution of positioning
+errors, one by a percentile and the other by its width, and we report both
+because a method could reduce the typical error while leaving a long tail, or
+the reverse.
 
 The second concerns energy. Suppressing a channel removes part of the collected
 light, so the reconstructed energy of the event falls and the photopeak shifts
@@ -1022,14 +1055,44 @@ Which regime is used for that training matters far less. The model trained on
 the intermediate regime exceeds the one trained on contiguous clusters by 1.99
 points in its own regime, a difference of 2.9 standard deviations, and the two
 are indistinguishable on contiguous failures ($-0.14$ points) and on scattered
-ones ($+0.99$ points, 1.3 standard deviations). Fig.~\ref{fig:multidead} shows
-how recovery degrades as $k$ grows: the contiguous regime is consistently the
-hardest, which is expected, since a compact group of failures leaves its
-members without healthy neighbours to draw on.
+ones ($+0.99$ points, 1.3 standard deviations).
+
+The behaviour across regimes deserves care, because the relative and absolute
+readings point in opposite directions (Table~\ref{tab:regimes-k}). In recovery,
+contiguous failures are the \emph{easiest} case for every $k \ge 2$: 57.7\,\%
+at $k=4$ against 50.7\,\% for scattered ones. In millimetres they are the
+worst: a contiguous group of four displaces the centroid by 1.480\,mm at the
+90th percentile, twice as much as four scattered channels, and after imputation
+still leaves 0.628\,mm against 0.366\,mm. Both statements come from the same
+runs. Recovery is a ratio, and a fault that causes more damage offers more
+damage to undo, so a larger fraction repaired can coexist with a larger
+residual error. Scattered failures are the least damaging in absolute terms
+and, at the same time, the hardest to correct proportionally.
+
+\begin{table}[t]
+\centering
+\caption{Recovery and residual displacement by regime as the number of
+suppressed channels grows, for the model trained on the intermediate regime
+($n=3$). Displacements at the 90th percentile, in millimetres.}
+\label{tab:regimes-k}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+& \multicolumn{3}{c}{\textbf{Recovery (\%)}}
+& \multicolumn{3}{c}{\textbf{Residual $\Delta R_{\mathrm{imp}}$ (mm)}} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+$k$ & Clus. & Near & Scat. & Clus. & Near & Scat. \\
+\midrule
+1 & 56.2 & 56.2 & 56.2 & 0.310 & 0.310 & 0.310 \\
+2 & \textbf{59.5} & 55.4 & 55.2 & 0.464 & 0.375 & \textbf{0.305} \\
+3 & \textbf{59.9} & 53.5 & 51.6 & 0.532 & 0.444 & \textbf{0.366} \\
+4 & \textbf{57.7} & 53.3 & 50.7 & 0.628 & 0.529 & \textbf{0.366} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{multidead}
+\includegraphics[width=\linewidth]{multidead_curve}
 \caption{Recovery as a function of the number of simultaneously suppressed
 channels, for a model trained on single failures and one trained on one to four.}
 \label{fig:multidead}
@@ -1041,27 +1104,30 @@ channels, for a model trained on single failures and one trained on one to four.
 Recovering the position is not the same as restoring a physically admissible
 signal, so we measured the two quantities the detector is built to deliver.
 
-The point-spread function of the flood map narrows from a macro-averaged FWHM
-of 0.1656\,mm with a suppressed channel to 0.0847\,mm after imputation
-(Fig.~\ref{fig:resolucion}), recovering 48.8\,\% of the blur the fault
-introduces. The positional bias behaves better than the width: it falls from
-0.1262\,mm to 0.0218\,mm, a recovery of 82.7\,\%. The imputed spot is therefore
-almost correctly centred, and what remains is a residual spread.
+The spread of the positioning error, measured as the Gaussian-equivalent FWHM
+of Eq.~\ref{eq:fwhm}, narrows from 0.1656\,mm with a suppressed channel to
+$0.0872 \pm 0.0015$\,mm after imputation ($n=3$, Fig.~\ref{fig:resolucion}),
+so imputation removes $47.3 \pm 0.9$\,\% of the blur the fault introduces. The
+bias behaves better than the width: it falls from 0.1262\,mm to
+$0.0220 \pm 0.0020$\,mm, a reduction of $82.6 \pm 1.6$\,\%. The error
+distribution after imputation is therefore almost centred on the true position,
+and what remains is a symmetric spread rather than a systematic displacement.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{resolucion}
-\caption{Point-spread function of the flood map with all channels operational,
-with one channel suppressed, and after imputation.}
+\caption{Distribution of the positioning error with one channel suppressed and
+after imputation. The width of each distribution is the quantity reported as
+FWHM in Eq.~\ref{eq:fwhm}.}
 \label{fig:resolucion}
 \end{figure}
 
-The energy spectrum is preserved to a comparable degree and, unlike the
-per-channel error, with little dependence on the region of the crystal:
-spectral recovery is 83.3\,\% in the core, 84.3\,\% in the middle band and
-81.2\,\% at the edge, for a global 82.9\,\% (Fig.~\ref{fig:espectro}). The
-residual shift of the photopeak stays between 0.20 and 0.24 ADC units in the
-three zones, against shifts an order of magnitude larger before correction.
+The energy spectrum is preserved to a comparable degree, with a global spectral
+recovery of $84.7 \pm 0.9$\,\% ($n=3$, Fig.~\ref{fig:espectro}). Here the
+core-to-edge gradient reappears: $87.4 \pm 1.8$\,\% in the core,
+$85.6 \pm 0.7$\,\% in the middle band and $81.2 \pm 0.3$\,\% at the edge. The
+residual shift of the photopeak stays at $0.21 \pm 0.005$ ADC units, an order
+of magnitude below the shift the fault introduces.
 
 \begin{figure}[t]
 \centering
