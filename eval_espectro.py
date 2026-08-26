@@ -62,6 +62,11 @@ except Exception:
 
 from dataset import load_dat_to_dense, load_positions, get_file_split, ICH_TO_IDX
 from imputation_eval import load_model, impute_channel, compute_xy
+# Para el modo multi-canal se reutilizan TAL CUAL la construcción de conjuntos de
+# muertos y la imputación conjunta de eval_multidead. Es deliberado: si aquí se
+# reimplementara la geometría del fallo, los espectros no serían comparables con
+# las curvas de recuperación, que es justo la comparación que interesa.
+from eval_multidead import build_dead_sets, impute_set
 
 # ════════════════════════════════════════════════════════════
 #  CONFIG
@@ -150,11 +155,16 @@ def find_photopeak(rcht, hi_cut=99.0, bins=200):
 #  NÚCLEO: espectros orig / deg / imp por escenario y zona
 # ════════════════════════════════════════════════════════════
 
-def eval_spectrum_model(run_name, X_list, zones_list, device, fail_ich):
+def eval_spectrum_model(run_name, X_list, zones_list, device, fail_ich,
+                        dead_sets=None):
     """
     Para cada sensor de fallo: RchT original / degradado / imputado de los eventos
     modified, estratificado por banda del metahexágono. Devuelve métricas + los
     arrays de RchT (para las figuras).
+
+    dead_sets : dict {idx_semilla: array de índices densos} o None.
+        None  = un solo canal por escenario (comportamiento histórico).
+        dict  = se apaga e imputa el conjunto entero a la vez (multi-dead).
     """
     from imputation_eval import load_ckpt_meta
     ckpt_path = Path(RUNS_BASE) / run_name / 'best_model.pth'
@@ -164,16 +174,24 @@ def eval_spectrum_model(run_name, X_list, zones_list, device, fail_ich):
     scenarios, spectra = [], {}
     for k, ich in enumerate(fail_ich):
         ch = ICH_TO_IDX[ich]
+        dead = np.asarray(dead_sets[ch]) if dead_sets is not None else np.array([ch])
         t0 = time.time()
         acc = {z: {'orig': [], 'deg': [], 'imp': []} for z, _, _ in ZONES}
         for X, zmasks in zip(X_list, zones_list):
-            mod = X[:, ch] > 0
+            # 'modified' con k>1 = ALGUNO de los muertos tenía señal, que es el
+            # mismo criterio que usa el Dataset al entrenar (is_modified).
+            mod = (X[:, dead] > 0).any(axis=1)
             if mod.sum() == 0:
                 continue
-            _, pred = impute_channel(model, X, ch, device)   # predicción en crudo
+            if dead.size == 1:
+                _, pred = impute_channel(model, X, ch, device)   # predicción en crudo
+                perdida, repuesta = X[:, ch], pred
+            else:
+                _, pred = impute_set(model, X, dead, device)     # pred: (N, k) en crudo
+                perdida, repuesta = X[:, dead].sum(axis=1), pred.sum(axis=1)
             rcht_o = X.sum(axis=1)
-            rcht_d = rcht_o - X[:, ch]                        # quitar el canal
-            rcht_i = rcht_d + pred                            # reponer la predicción
+            rcht_d = rcht_o - perdida                         # quitar los canales
+            rcht_i = rcht_d + repuesta                        # reponer la predicción
             for zname, zm in zmasks.items():
                 m = mod & zm
                 if m.sum() == 0:
@@ -208,7 +226,9 @@ def eval_spectrum_model(run_name, X_list, zones_list, device, fail_ich):
             print(f"  [Ich {ich:2d}] {zname:6s}: n={o.size:>9,}  "
                   f"shift deg={zres[zname]['shift_deg']:+.3f} imp={zres[zname]['shift_imp']:+.3f} ADC  "
                   f"W: {w_deg:.3f}->{w_imp:.3f}  recovery={rec:5.1f}%", flush=True)
-        scenarios.append({'ich': ich, 'zones': zres})
+        scenarios.append({'ich': ich, 'zones': zres,
+                          'dead_idx': [int(v) for v in dead],
+                          'k': int(dead.size)})
         print(f"  [Ich {ich:2d}] hecho en {time.time()-t0:.0f}s  ({k+1}/{len(fail_ich)})", flush=True)
 
     return scenarios, spectra, ckpt
@@ -331,14 +351,29 @@ def main():
     def flag_value(name, default):
         return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else default
 
-    out_name = flag_value('--out', 'ESPECTRO_quick' if quick else 'ESPECTRO')
+    # --dead K / --deadmode: apagar K canales a la vez en lugar de uno. Los
+    # conjuntos salen de build_dead_sets (eval_multidead), así que la geometría
+    # del fallo es EXACTAMENTE la misma que en las curvas de recuperación.
+    n_dead = int(flag_value('--dead', 1))
+    dead_mode = flag_value('--deadmode', 'near')
+    assert n_dead >= 1, "--dead debe ser >= 1"
+    assert dead_mode in ('cluster', 'near', 'scatter'), \
+        "--deadmode debe ser cluster, near o scatter"
+
+    # Nombre por defecto de la campaña: si es multi-dead, lleva k y modo, para no
+    # pisar nunca la de un solo canal.
+    if n_dead > 1:
+        por_defecto = f'ESPECTRO_k{n_dead}_{dead_mode}'
+    else:
+        por_defecto = 'ESPECTRO_quick' if quick else 'ESPECTRO'
+    out_name = flag_value('--out', por_defecto)
     ev_arg = flag_value('--events', None)
     max_ev = 20_000 if quick else (int(ev_arg) if ev_arg else TEST_MAX_EVENTS)
     fail_ich = FAIL_ICH[:2] if quick else FAIL_ICH
 
     skip = set()
     for j, a in enumerate(argv):
-        if a in ('--out', '--events'):
+        if a in ('--out', '--events', '--dead', '--deadmode'):
             skip.add(j); skip.add(j + 1)
         elif a.startswith('--'):
             skip.add(j)
@@ -346,6 +381,8 @@ def main():
 
     print(f"EVAL ESPECTRO sobre {len(runs)} run(s): {runs}")
     print(f"  sensores de fallo: {fail_ich}  |  campaña: runs/<run>/{out_name}/")
+    if n_dead > 1:
+        print(f"  MULTI-DEAD: {n_dead} canales por escenario, régimen '{dead_mode}'")
     if quick:
         print("MODO --quick: 20k eventos/archivo, 2 sensores, sin W&B")
 
@@ -390,6 +427,28 @@ def main():
     print("Bandas del metahexágono (eventos):",
           {z: f"{int(m.sum()):,}" for z, m in zm_all.items()})
 
+    # ── Conjuntos de canales muertos (solo si es multi-dead) ──
+    # Deterministas y con la MISMA semilla que eval_multidead, así que el conjunto
+    # que se apaga aquí para un (semilla, k, régimen) dado es exactamente el mismo
+    # que allí. Sin eso, espectro y recuperación no hablarían del mismo fallo.
+    dead_sets = None
+    if n_dead > 1:
+        from hex_geometry import get_neighbor_matrix
+        from dataset import N_ACTIVE, IDX_TO_ICH
+        nbr = get_neighbor_matrix(PSIPM_PATH)
+        semillas = [ICH_TO_IDX[i] for i in fail_ich]
+        # OJO: build_dead_sets usa UN generador que consume en secuencia, así que
+        # el conjunto de cada semilla depende de cuántas se procesaron antes. Hay
+        # que pasarle los 61 canales igual que hace eval_multidead y quedarse
+        # luego con los cinco; si se le pasan solo esos cinco, el RNG va en otro
+        # estado y salen fallos distintos —del régimen correcto, pero otros—, y
+        # el espectro dejaría de hablar del mismo fallo que las curvas.
+        todos = build_dead_sets(nbr, list(range(N_ACTIVE)), n_dead, dead_mode)
+        dead_sets = {s: todos[s] for s in semillas}
+        for s in semillas:
+            print(f"  semilla Ich {IDX_TO_ICH[s]:2d} -> apaga Ich "
+                  f"{sorted(IDX_TO_ICH[int(v)] for v in dead_sets[s])}")
+
     for run_name in runs:
         print(f"\n{'='*64}\nEVAL ESPECTRO: {run_name}\n{'='*64}")
         out_dir = Path(RUNS_BASE) / run_name / out_name
@@ -400,7 +459,7 @@ def main():
         out_dir.mkdir(parents=True, exist_ok=True)
 
         scenarios, spectra, ckpt = eval_spectrum_model(
-            run_name, X_list, zones_list, device, fail_ich)
+            run_name, X_list, zones_list, device, fail_ich, dead_sets)
 
         recs = [z['spectral_recovery_pct'] for s in scenarios for z in s['zones'].values()]
         print(f"\n  RESUMEN: recuperación espectral media = {np.mean(recs):.1f}%  "
@@ -412,6 +471,7 @@ def main():
             'test_files': [f.name for f in test_files],
             'max_events_per_file': max_ev if max_ev else 'all',
             'campaign': out_name,
+            'n_dead': n_dead, 'dead_mode': dead_mode if n_dead > 1 else None,
             'zone_definition': {'bands': [{'name': n, 'lo': lo, 'hi': hi} for n, lo, hi in ZONES],
                                 'hex_scale_p995': float(scale)},
             'scenarios': scenarios,
