@@ -845,7 +845,7 @@ Section~\ref{sec:res-multidead}. Every value is the mean over four
 independently trained models evaluated on the five held-out modules, and the
 stated deviation is the spread between those models.
 
-%Respeta las siglas una vez invocadas. 
+%Respeta las siglas una vez invocadas. [Checked] auditadas las 15 siglas del documento: 0 formas largas repetidas
 The reference model recovers the charge of a suppressed channel with a MAE of $0.6228 \pm 0.0064$ in normalised units. Expressed relative to
 the mean charge that each channel collects, this amounts to a 29.1\,\% error,
 and it is not uniform across the array: 25.9\,\% for channels in the core of the
@@ -972,12 +972,15 @@ PNA               & \num{165761}  & 58.45 & 52.48 & 0.6309 \\
 \bottomrule
 \end{tabular}
 \end{table}
-%Creo que aqui se podría mencionar que metodo es cual, decir los nombres. 
+%Creo que aqui se podría mencionar que metodo es cual, decir los nombres. [Checked]
 Neither capacity nor a more elaborate aggregation moves that figure. Widening
-the graph model changes recovery by less than a point in either direction. The
-two architectures with a wider receptive field, however, perform three points
-\emph{worse} despite using up to a hundred times more parameters, and combining
-several aggregation statistics matches the reference rather than exceeding it. The problem behaves as a local
+\textsc{HexGNN} from 38\,k to 399\,k parameters changes recovery by less than a
+point in either direction. The two architectures with a wider receptive field
+perform three points \emph{worse}: Graphormer reaches 55.17\,\% with 4.3\,M
+parameters and the graph U-Net 55.22\,\% with 332\,k, against 58.02\,\% for the
+38\,k reference. PNA, which combines several aggregation statistics scaled by
+node degree, matches the reference at 58.45\,\% rather than exceeding it, using
+four times as many parameters. The problem behaves as a local
 one, and the isotropic mean over immediate neighbours is enough to solve it.
 
 To test whether the advantage comes from the detector geometry rather than from
@@ -1008,10 +1011,12 @@ layers propagate information only a few hops.
 \label{sec:res-variability}
 %Esta intro poetica?? Mejor algo como, para hacer un analisis estadistico riguroso de los modelos.... [Checked]
 To characterise the uncertainty of the reported figures we measured the two
-sources of variability separately (Table~\ref{tab:reference}).
-Across four independent training runs on a fixed partition, differing in the
-global seed and in the order of the modules, recovery at P90 is
-$58.04 \pm 0.37$\,\%.
+sources of variability separately (Table~\ref{tab:reference}). Both refer to
+the reference configuration used throughout this section: \textsc{HexGNN-s}
+trained with the MSE on single-channel failures, evaluated on the five held-out
+modules. Across four independent training runs on a fixed partition, differing
+in the global seed and in the order in which the modules are presented,
+recovery at P90 is $58.04 \pm 0.37$\,\%.
 
 \begin{table}[t]
 \centering
@@ -1027,7 +1032,7 @@ Data partition                & 5 & $56.56 \pm 2.32$ & $50.60 \pm 2.04$ \\
 \bottomrule
 \end{tabular}
 \end{table}
-% De nuevo creo que no queda claro el modelo de referencia que se esta usando. 
+% De nuevo creo que no queda claro el modelo de referencia que se esta usando. [Checked]
 Repeating the experiment with five different partitions of the same 159
 modules, however, gives $56.56 \pm 2.32$\,\%, a standard deviation six times
 larger. Evaluating the model on individual unseen modules explains why:
