@@ -825,12 +825,7 @@ Section~\ref{sec:res-variability} quantifies how far that precision extends.
 
 We implemented the models in PyTorch, and the data pipeline, the evaluation and
 the figures in Python with NumPy, SciPy and Matplotlib. Training ran on a single
-NVIDIA GeForce GTX 1660 SUPER with an AMD Ryzen 5 3600X host. On that hardware a
-complete run of the reference model takes about two and a half hours, and
-evaluating it over the five test modules about eighty minutes. Each run stores
-its configuration, its preprocessing parameters and the commit of the code
-alongside the weights, so that any figure reported here can be traced back to
-the run that produced it.
+NVIDIA GeForce GTX 1660 SUPER with an AMD Ryzen 5 3600X host.
 
 
 % ---------------------------------------------------------------------
@@ -850,8 +845,8 @@ Section~\ref{sec:res-multidead}. Every value is the mean over four
 independently trained models evaluated on the five held-out modules, and the
 stated deviation is the spread between those models.
 
-The reference model recovers the charge of a suppressed channel with a mean
-absolute error of $0.6228 \pm 0.0064$ in normalised units. Expressed relative to
+%Respeta las siglas una vez invocadas. 
+The reference model recovers the charge of a suppressed channel with a MAE of $0.6228 \pm 0.0064$ in normalised units. Expressed relative to
 the mean charge that each channel collects, this amounts to a 29.1\,\% error,
 and it is not uniform across the array: 25.9\,\% for channels in the core of the
 crystal against 34.0\,\% at the edge. The absorbing adhesive on the lateral
@@ -902,10 +897,10 @@ difference between a flood map and the intact reference, averaged over failures
 of the sensors along one line of the array. Without correction the difference
 covers the neighbourhood of the failing channel with a pattern of excess and
 deficit counts, which is the signature of events being displaced towards the
-surviving sensors. After imputation that pattern largely disappears. The lower
+surviving sensors, as the CoG express. After imputation that pattern largely disappears. The lower
 row, which follows a line towards the edge of the crystal, shows a residual
 that the upper row does not: the periphery is where the method has least
-information to work with, in agreement with the per-channel errors of
+information to work with, as explained in the per-channel errors of
 Section~\ref{sec:res-accuracy}.
 
 \begin{figure*}[t]
@@ -953,7 +948,7 @@ after imputing it.}
 \label{sec:res-prior}
 
 Table~\ref{tab:architectures} compares the architectures under a common
-campaign. The two models without a geometric prior reach 51.39\,\% and
+evaluation. The two models without a geometric prior reach 51.39\,\% and
 48.92\,\% recovery at P90. The smallest graph model reaches
 58.0\,\% with an order of magnitude fewer parameters than either of them.
 
@@ -977,7 +972,7 @@ PNA               & \num{165761}  & 58.45 & 52.48 & 0.6309 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
+%Creo que aqui se podría mencionar que metodo es cual, decir los nombres. 
 Neither capacity nor a more elaborate aggregation moves that figure. Widening
 the graph model changes recovery by less than a point in either direction. The
 two architectures with a wider receptive field, however, perform three points
@@ -996,7 +991,7 @@ the model achieves, and it is the specific adjacency of the detector that
 matters, not the fact of using a graph.
 
 Against methods without learned parameters the network recovers 57.9\,\%,
-compared with 45.41\,\% for the mean of the neighbouring channels and
+compared with 45.41\,\% for the method that applies the mean of the neighbouring channels and
 46.56\,\% for a per-channel linear regression on the remaining 60. The margin
 is 12.49 and 11.33 percentage points respectively, which answers the question
 of whether the complexity of the model is warranted.
@@ -1032,7 +1027,7 @@ Data partition                & 5 & $56.56 \pm 2.32$ & $50.60 \pm 2.04$ \\
 \bottomrule
 \end{tabular}
 \end{table}
-
+% De nuevo creo que no queda claro el modelo de referencia que se esta usando. 
 Repeating the experiment with five different partitions of the same 159
 modules, however, gives $56.56 \pm 2.32$\,\%, a standard deviation six times
 larger. Evaluating the model on individual unseen modules explains why:

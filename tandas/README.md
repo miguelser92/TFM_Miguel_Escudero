@@ -19,6 +19,7 @@ detiene si un paso falla.
 | noche_multidead_near.ps1 | 19 ago | near vs cluster en los tres regimenes con cobertura completa. Cae la ventaja EN LOS TRES: near solo gana en el suyo (+1,99, z=2,9) y empata en los extremos. Lo determinante es entrenar multi-dead: +24 pts sobre k=1 |
 | noche_mix_estabilidad.ps1 | 20 ago | NO estabiliza: sd 3,31 vs 4,45 pero F=1,81 p=0,750, y la media empeora -0,65. El minimo sobre 61 canales es ruidoso de por si |
 | noche_espectro_resolucion.ps1 | 24 ago | Espectro 84,7 +/- 0,9 % (la mejora esta en el nucleo, el borde no se mueve) y resolucion 47,3 +/- 0,9 % de blur. Las dos metricas fisicas del paper pasan de n=1 a n=3 |
+| noche_cv_completa.ps1 | 26 ago | (pendiente) Validacion cruzada con cobertura completa: la ultima cifra del protocolo viejo que sigue en el paper. NO estrechara la banda (+/-2 viene de tener 5 modulos en test), solo da coherencia de protocolo |
 
 **Fase experimental cerrada el 20/08.** Cinco noches, ~68 h de computo. Lo que queda es redaccion.
 

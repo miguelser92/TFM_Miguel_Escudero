@@ -174,8 +174,13 @@ def main():
                    label=f'imputed (FWHM {2.3548*1.4826*np.median(np.abs(dxi-np.median(dxi))):.3f} mm)')
         ax[2].set_xlabel('dx (mm)'); ax[2].set_ylabel('density'); ax[2].set_yscale('log')
         ax[2].legend(fontsize=8); ax[2].grid(alpha=0.3)
-        ax[2].set_title('1D profile — narrower = better resolution')
-        fig.suptitle('Point-spread of the position error introduced by the dead channel')
+        # OJO con la nomenclatura: esto NO es la resolución espacial del detector,
+        # que ronda los 4 mm. Es la anchura del ERROR que introduce el canal muerto,
+        # medida contra la reconstrucción intacta. Llamarlo 'resolution' induce a
+        # leer 0.09 mm como resolución del detector, que es dos órdenes de magnitud
+        # menos de lo real. Ver la sección de figuras de la bitácora.
+        ax[2].set_title('1D profile — narrower = less error introduced')
+        fig.suptitle('Distribution of the position error introduced by the dead channel')
         fig.tight_layout()
         p = OUT_DIR / f'resolution_pointspread{tag}.png'
         fig.savefig(p, dpi=130, bbox_inches='tight'); plt.close(fig)
