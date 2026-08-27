@@ -1049,12 +1049,15 @@ in the test partition, that places the standard error of the reported mean at
 3.5 points.
 
 %Esta frase no me gusta tampoco, Is worth to be developed/explained/discussed... [Checked]
-The two figures answer different questions. Comparisons between models are
-paired --- the same modules, the same events and the same masks --- and resolve
-differences of tenths of a point. Absolute performance on a detector
-that has never been measured is far less certain, and the dominant term is not
-the training procedure but which detectors happen to fall in the test
-partition. We therefore take $56.56 \pm 2.32$\,\% as the figure that describes %%%La frase final esta bien pero todo lo anterior esta un poco lioso. 
+%%%La frase final esta bien pero todo lo anterior esta un poco lioso. [Checked]
+Which of the two bands applies depends on the question. When two models are
+compared, the comparison is paired --- the same modules, the same events and the
+same masks --- so the band that applies is the $\pm 0.37$ of the training run,
+and differences of tenths of a point are real. When the question is instead how
+the method will behave on a detector nobody has measured, the band that applies
+is the $\pm 2.32$ of the partition, because what dominates there is which
+detectors happen to fall in the test set and not anything about the training.
+We therefore take $56.56 \pm 2.32$\,\% as the figure that describes
 what the method achieves on unseen hardware.
 
 %Que significa to use as a claim, osea demuestralo pero tampoco juzgues aqui, que el [Checked]
@@ -1120,7 +1123,7 @@ one trained on \emph{cluster} by 1.99 points when both are evaluated on
 \emph{near}, a difference of 2.9 standard deviations. On the other two
 geometries they are indistinguishable: $-0.14$ points on contiguous failures and
 $+0.99$ on scattered ones, the latter at 1.3 standard deviations. Training on
-the intermediate geometry therefore buys a small advantage on its own terrain
+training on \emph{near} therefore buys a small advantage on its own terrain
 and loses nothing elsewhere, which is why we use it as the production
 configuration.
 
@@ -1165,18 +1168,20 @@ $k$ & Clus. & Near & Scat. & Clus. & Near & Scat. \\
 %v2.1 Esta figura es en concreto para un modelo near, entrenado con varios channels supressed. [Checked]
 %He puesto un caption más acorde, un poco largo pero bueno, y la figura no se ve una mierda, hay que ajustar. [Checked: a doble columna]
 %Si es muy grande igual puedo generar una con dos paneles, P90 y error en mmm
-\begin{figure*}[t]
+
+%v2.2 He puesto la figura con dos paneles, creo que no hay que cambiar nada en el texto. 
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.9\textwidth]{multidead_curve}
-\caption{Recovery and residual error against the number of simultaneously
-suppressed channels, for the model trained on \emph{near} with one to four
-channels and evaluated under the three failure geometries. Left, recovery at
-P90; right, absolute displacement at P90, with the degraded case dashed for
-reference. The two panels show the opposing readings discussed in the text:
-contiguous failures give the highest recovery and, at the same time, the largest
-residual error.}
+\includegraphics[width=\linewidth]{multidead_2panel}
+\caption{Recovery and residual displacement as the number of simultaneously
+suppressed channels grows, for the model trained on \emph{near} and
+evaluated under the three failure geometries. Left, recovery at P90; right, the
+displacement that remains after imputation. Lines are the mean over three
+independently trained models and the shaded band their standard deviation. The
+two panels show the opposite readings discussed in the text: contiguous failures
+give the highest recovery and, at the same time, the largest residual error.}
 \label{fig:multidead}
-\end{figure*}
+\end{figure}
 
 \subsection{Physical Fidelity}
 \label{sec:res-fidelity}
@@ -1255,7 +1260,7 @@ contiguous failures leave the largest residual in both, 0.628\,mm of
 displacement and 0.628 ADC units of photopeak shift, and scattered ones the
 smallest. Compact groups remove a large amount of light from one region of the
 crystal, which is hard to restore in energy, while spreading the same four
-failures across the array keeps each individual deficit small. The intermediate
+failures across the array keeps each individual deficit small. The \emph{near}
 geometry sits between the two in both metrics and is the most stable of the
 three, with a standard deviation of 0.3 points against the 4.8 of the
 contiguous case.
@@ -1371,7 +1376,6 @@ forward passes per event.
 \section{Discussion}
 \label{sec:discussion}
 % ---------------------------------------------------------------------
-% BOCETO v1. Seis subsecciones. Ninguna cifra que no este ya en Resultados.
 
 \subsection{What the Method Achieves}
 
@@ -1414,54 +1418,72 @@ local phenomenon: the charge collected by a sensor is determined by the
 interactions that occur near it, and the redundancy that makes imputation
 possible lives in that neighbourhood.
 
+%v2.2 Esta seccion no me gusta mucho creo que es mejor comentar que el problema real es complejo
+% y faltan calibraciones, datos reales y poder parear un GT que nos limitan los resultados.
+%Esta muy escueto y creo que es lo mas importante de comentar no?  Todo esto me pega mas en limitaciones
+% [Checked] Reescrita entera. Antes respondia "que limita el rendimiento" solo
+% con la variabilidad entre modulos, que es un sintoma. Ahora responde con la
+% causa: son datos reales, sin calibrar y sin referencia posible para un fallo
+% real. Limitations se ha recortado en paralelo para no repetirlo.
 \subsection{What Limits Performance}
+\label{sec:disc-limits}
 
 If capacity is not the constraint, the natural question is what is. Our
-measurements point away from the model. Nine architectural variants, a doubled
-training budget and a larger parameter count all leave recovery within a point
-of the reference. What does move it, and by far, is which detectors the model
-is measured on: recovery varies between 29 and 63\,\% across individual
-modules, with a standard deviation of 7.9 points, against 0.3 between training
-runs of the same partition.
+measurements point away from the model and towards the data. Nine architectural
+variants, a doubled training budget and a larger parameter count all leave
+recovery within a point of the reference. What does move it, and by far, is
+which detector the model is measured on: recovery ranges from 29 to 63\,\%
+across individual modules, with a standard deviation of 7.9 points, against 0.3
+between training runs on the same partition.
 
-That comparison sets the terms in which any figure here should be read. The
-relative ordering of models is measured precisely, because every comparison is
+That spread is a property of the hardware, not of the method, and it is the
+price of working with real acquisitions. The 159 modules were built and
+assembled one by one, and they differ in ways the network never observes: the
+gain of each individual photosensor, the quality of the optical coupling
+between crystal and array, the exact placement of the source during each
+acquisition. No energy calibration was applied, so the charge the model reads
+is in ADC units whose scale is not common to all modules. A model trained
+across the ensemble can only learn what the ensemble shares; whatever is
+specific to one detector is, by construction, outside its reach.
+
+There is a second consequence of using real data, and it bounds what can be
+verified rather than what can be learned. The fault we inject is synthetic
+because a real one leaves no reference: on a module whose channel is genuinely
+dead there is no way to know what that channel should have read, and therefore
+no way to measure the error of the imputation. Everything reported here is
+measured on healthy hardware with a fault we created, and the agreement between
+that setting and a real failure is an assumption, not a measurement. It is a
+reasonable assumption --- the mask reproduces patterns we observed in the 62
+defective modules --- but it is worth stating as one.
+
+Read together, the two points set the terms in which any figure in this work
+should be taken. Comparisons between models are precise, because they are
 paired over the same modules, events and masks. The absolute value on a new
-detector is far less certain, and the dominant term is hardware variability
-rather than anything about the network. It also suggests where the remaining
-margin lies: not in a better model, but in accounting for the differences
-between modules, which is what a per-module calibration would do.
+detector carries the variability of the hardware, and the way to reduce it is a
+per-module calibration rather than a better network.
 
+%Efectivamente creo que es muy largo. [Checked: de cuatro parrafos a dos]
 \subsection{Behaviour Under Multiple Failures}
 
-Training on single failures does not transfer to multiple ones, and the gap is
-the largest effect we measured, 24.6 points. That much was expected. Two
-observations were not.
+Training on single failures does not transfer to multiple ones, and the gap,
+24.6 points, is the largest effect we measured. The geometry used to build the
+training masks matters far less: training on \emph{near} gains 1.99 points on
+its own terrain and is indistinguishable from \emph{cluster} elsewhere. The
+practical recommendation is therefore simpler than we expected --- train with
+one to four channels suppressed and do not worry much about the pattern.
 
-The first is that the geometry used to generate the training masks barely
-matters once the model sees multiple failures at all. The intermediate geometry
-gains 1.99 points on its own terrain and is indistinguishable from the
-contiguous one elsewhere. The practical recommendation that follows is
-therefore simpler than we anticipated: train with one to four channels
-suppressed, and do not worry much about the pattern.
-
-The second is that the energy spectrum does not degrade as failures accumulate.
-Spectral recovery rises from 83 to 89\,\% between one and four suppressed
-channels, because the damage grows faster than the residual. The metric is a
-ratio, and a larger fault offers more to repair. Read in absolute terms the
-picture is the ordinary one --- four contiguous failures leave 0.63 ADC units of
-residual shift against 0.20 for four scattered ones --- but the operational
-consequence is worth stating: the energy information degrades gracefully, which
+Two things about the energy did surprise us. The spectrum does not degrade as
+failures accumulate: recovery rises from 83 to 89\,\% between one and four
+suppressed channels, because the metric is a ratio and the damage grows faster
+than the residual. And the three geometries reorder themselves with respect to
+the positioning results, contiguous failures being the easiest case in position
+and the hardest in energy. A compact group displaces the centroid greatly but
+predictably, since the ring of surviving sensors around it still describes
+where the light went, while removing that much charge from one region is what
+makes the energy hard to restore. In absolute terms both metrics agree that a
+contiguous group is the worst case; it is only as a ratio that they disagree.
+The practical reading is that the energy information degrades gracefully, which
 is what a downstream energy window needs.
-
-The two metrics also disagree on which geometry is hardest, and the
-disagreement is instructive. Contiguous groups are the easiest to correct in
-position and the hardest in energy. A compact group displaces the centroid
-enormously but predictably, since the surviving ring around it still describes
-where the light went; the same group removes a large amount of charge from one
-region, and that is harder to restore. Scattered failures behave the opposite
-way. This is a reminder that a single figure of merit would have hidden half of
-the behaviour of the method.
 
 \subsection{Relation to Existing Practice}
 
@@ -1481,49 +1503,100 @@ cases the information is present in the acquired data, encoded in a linear
 combination fixed by design, and the network learns to invert a known mapping.
 A failed channel is a different problem: nothing of its signal reaches the
 acquisition, and the only remaining trace is the statistical correlation that
-light sharing induces among its neighbours. That the reconstruction is possible
-at all is a consequence of the monolithic geometry.
+light sharing induces among its neighbours.
 
-% TODO(discusion): decidir si comparar con Jimenez Algarra y Hidalgo-Torres.
-% Trabajan sobre este mismo detector pero resuelven POSICIONAMIENTO, no
-% imputacion, y con datos simulados. La comparacion util no es de cifras
-% -no son comparables- sino de encaje: su red estima la posicion a partir de
-% los 61 canales, la nuestra repara el vector de 61 canales antes de que esa
-% estimacion ocurra. Son piezas consecutivas del mismo sistema.
+% [Checked] Anadido el parrafo sobre el encaje con Jimenez Algarra e
+% Hidalgo-Torres, sin comparar cifras -no son comparables- y llevandolo hacia
+% la ventaja del monolitico, como pediste.
+That last point is what connects this work with the other deep learning studies
+on this same detector. Both estimate the interaction position from the 61
+channels, one on simulated data \cite{jimenez2025} and one on measured
+\cite{hidalgo2022, hidalgo-torres_predicting_2020}. Ours does not compete with
+them: it repairs the 61-channel vector that they take as input, and the two are
+consecutive stages of the same chain. What they have in common is more
+interesting than what separates them. All three exploit the fact that in a
+monolithic crystal the light of one event reaches many sensors, so the array
+carries more information than the number of channels suggests --- position
+between sensors in their case, the value of a missing sensor in ours. A
+pixelated detector offers neither: its segmentation fixes the spatial
+resolution at the pixel pitch, and a dead pixel is a hole with no redundancy to
+fill it from. That redundancy is difficult to exploit analytically, which is
+historically why monolithic designs were set aside, and it is exactly what a
+learned model is good at. The results reported here suggest that this is also
+where their remaining margin lies.
 
 \subsection{Limitations}
 
-Four limitations bound what the preceding results support.
+Three limitations bound what the preceding results support, beyond the two
+properties of the data discussed in Section~\ref{sec:discussion}.
 
 The test partition contains five modules. Given the variability between
 detectors, that places the standard error of any absolute figure at
-approximately 3.5 points, and it is the reason we report cross-validated values
-rather than the result of a single partition.
-
-No energy calibration was applied. The spectral metric is constructed as a
-paired difference so that the missing calibration cancels, but this means the
-results describe the conservation of the spectrum rather than its absolute
-accuracy in keV.
+approximately 3.5 points, which is why we report cross-validated values rather
+than the result of a single partition.
 
 The simulated fault is a total suppression. Real degradation is often partial:
-a channel that retains part of its response, or drifts with temperature. The
+a channel that keeps part of its response, or that drifts with temperature. The
 method has not been evaluated in that regime, and it is not obvious that a
 model trained on complete failures transfers to it.
 
-Finally, the worst-channel figure turned out to be unusable as a robustness
-metric. Its variation across training runs, $\pm 4.5$ points, exceeds any
-difference we could have attributed to a design choice, and the channel
-attaining the minimum is not stable. We report it descriptively and draw no
-conclusion from it.
+%v.2.2 Si que sabemos, es por la variabilidad de los datos reales, no son simulaciones,
+% hay datos que tienen menos info sobre un canal por azar, porque ese canal puede tener
+% algo menos de ganancia, por posicionamiento del emisor, osea no creo que sea correcto
+% decir eso simplemente comentar que en lineas futuras un trabajo con datos simulados o
+% ultracontrolados permitira analizar esto mejor. [Checked]
+Finally, the minimum over the 61 channels proved unusable as a robustness
+metric, and the reason is instructive rather than mysterious. Its variation
+across training runs, $\pm 4.5$ points, exceeds any difference we could have
+attributed to a design choice, and the channel attaining it changes from run to
+run. A minimum over 61 values is a noisy statistic to begin with, and here it
+lands on whichever channel happens to be worst served by the data: the sensors
+do not all have the same gain, the source was not equidistant from all of them,
+and some channels simply receive less usable light than others in a given
+acquisition. What the metric measures is therefore closer to the luck of the
+acquisition than to the robustness of the model. Separating the two would
+require data in which the per-channel response is known or controlled, which
+real flood acquisitions do not provide.
 
+%v2.2 comentar lo que te digo arriba aqui mas extenso, no ser tremendista si no decir que
+% hemos sentado unas bases en este campo y que estas son las lineas futuras. Aunque ahora
+% que lo pienso esto queda mejor en la conclusion.
+% [Checked] Ampliada y en tono de lineas abiertas, no de deficiencias. El "hemos
+% sentado unas bases" NO se dice aqui a proposito: si va tambien en Conclusions
+% suena a autobombo repetido. Lo dejo para que lo digas tu una sola vez alli.
 \subsection{Future Work}
 
-Three directions follow directly. A per-module calibration would address the
-dominant source of uncertainty identified above. Extending the training masks
-to partial degradation would cover the failure mode the current model does not
-see. And the 62 modules with genuine defects, of which 18 are annotated so far,
-offer a validation against expert criterion that no synthetic injection can
-replace.
+Four directions follow from the above, and the first two address the two
+limits identified in Section~\ref{sec:discussion} rather than any shortcoming of
+the network.
+
+A calibrated acquisition would separate what belongs to the method from what
+belongs to the hardware. With per-channel gains known, the charge of every
+module would live on a common scale, the spectral metric could be reported in
+keV instead of as a conservation ratio, and the spread between detectors could
+be attributed rather than merely measured. A complementary route is a
+controlled simulation of this same geometry, where the response of each sensor
+is set rather than inferred: it would make the worst-channel behaviour
+analysable, and it would allow the synthetic fault to be validated against a
+known reference.
+
+The second is the 62 modules with genuine defects, of which 18 are annotated so
+far. They cannot give a quantitative error, for the reason given above, but
+they can answer a question the synthetic experiments cannot: whether an
+imputation trained on injected faults produces flood maps that an expert
+accepts as repaired.
+
+The third is partial degradation. Extending the training masks to channels that
+keep part of their response, rather than none of it, would cover the failure
+mode that the current model does not see and that the annotation campaign
+suggests is the more common one in practice.
+
+The fourth concerns what the imputation is for. Everything here is measured on
+single detectors, and the quantity that matters clinically is the resolution of
+the reconstructed image. Propagating imputed events through a full
+reconstruction, and quantifying what a repaired module contributes to a ring of
+them, is the step that would turn a per-detector correction into a
+system-level result.
 
 
 % ---------------------------------------------------------------------

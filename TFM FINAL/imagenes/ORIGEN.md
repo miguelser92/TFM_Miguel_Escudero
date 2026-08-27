@@ -54,6 +54,13 @@ ejecutados.
 
 Se dejan en la carpeta por si se recuperan, pero **el `.tex` no las cita**.
 
+## Candidatas a apéndice
+
+`apendice_candidatas/` tiene copias de las figuras que podrían ir a un apéndice,
+con su propio README explicando qué sostiene cada una y cuáles recomiendo. Son
+copias: los originales no se han movido, y la carpeta se puede borrar entera sin
+consecuencias. El `.tex` no la usa todavía.
+
 ## Al regenerar cualquiera
 
 1. Copiar desde `runs/`, no mover.
