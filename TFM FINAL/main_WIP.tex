@@ -194,6 +194,18 @@ hypometabolic and amyloid patterns of Alzheimer's disease
 \cite{johnson2013}, among other neurodegenerative and cerebrovascular
 disorders.
 
+
+%v2.1: esta imagen hay que ponerla en el bottom de la pagina 1, para dejar más peso visual en la primera plana. [Checked]
+% [!b] la manda al pie de pagina; la ! relaja los limites que por defecto
+% impiden colocar ahi un flotante de este tamano.
+\begin{figure}[!b]
+\centering
+\includegraphics[width=\linewidth]{escaner}
+\caption{\textbf{TEMPORAL}Three-dimensional model of the quasi-spherical, hexagonal-based
+PET scanner. Reproduced from \cite{perez-benito_sipm-based_2019}.}
+\label{fig:escaner}
+\end{figure}
+
 The sensitivity of PET is not matched by its spatial resolution. Clinical
 scanners typically resolve 4--5\,mm full width at half maximum
 (FWHM) \cite{spencer2021}, and
@@ -241,16 +253,6 @@ light yield and energy resolution than square, triangular or cylindrical
 prisms \cite{perez-benito_scintillator_2023}. Each module is built around a monolithic LYSO crystal
 \cite{perez-benito_laser-microstructured_2025}.
 
-%v2.1: esta imagen hay que ponerla en el bottom de la pagina 1, para dejar más peso visual en la primera plana. [Checked]
-% [!b] la manda al pie de pagina; la ! relaja los limites que por defecto
-% impiden colocar ahi un flotante de este tamano.
-\begin{figure}[!b]
-\centering
-\includegraphics[width=\linewidth]{escaner}
-\caption{\textbf{TEMPORAL}Three-dimensional model of the quasi-spherical, hexagonal-based
-PET scanner. Reproduced from \cite{perez-benito_sipm-based_2019}.}
-\label{fig:escaner}
-\end{figure}
 
 The choice between segmenting the scintillator and leaving it continuous is
 not incidental, and it conditions how the interaction position can be
@@ -862,7 +864,7 @@ matters because the failure mode we were guarding against is a model that
 minimises its error by predicting conservatively low values, which would look
 acceptable in the MAE and would systematically displace the reconstructed
 position but does not happen in the experiments. 
-
+%Nota para mi: Basicamente si el Bias=MAE el modelo sería conservador y tendría una tendencia a corregir erronea
 \subsection{Recovery of the Reconstructed Position}
 \label{sec:res-position}
 
@@ -1235,6 +1237,51 @@ residual shift of the photopeak stays at $0.21 \pm 0.02$ ADC units across the
 three zones, against the 1.6 to 1.9 ADC units that the fault introduces before
 correction.
 
+Both figures so far concern a single suppressed channel. Repeating the spectral
+measurement as $k$ grows gives a result we did not expect
+(Table~\ref{tab:espectro-k}): the spectrum is \emph{not} progressively lost.
+Recovery goes from $83.1 \pm 0.2$\,\% with one channel to $88.7 \pm 0.3$\,\%
+with four. The reason is again that recovery is a ratio. Suppressing four
+channels shifts the photopeak by 4.78 ADC units instead of 1.78, and the
+residual shift after imputation grows from 0.24 to 0.46, so the damage roughly
+triples while what remains of it only doubles.
+
+The three failure geometries also reorder themselves with respect to the
+positioning results. At $k=4$ the contiguous geometry gives the lowest spectral
+recovery, $85.6 \pm 4.8$\,\%, and the scattered one the highest,
+$93.3 \pm 0.4$\,\%, which is the opposite of the ordering in
+Table~\ref{tab:regimes-k}. In absolute terms, however, the two metrics agree:
+contiguous failures leave the largest residual in both, 0.628\,mm of
+displacement and 0.628 ADC units of photopeak shift, and scattered ones the
+smallest. Compact groups remove a large amount of light from one region of the
+crystal, which is hard to restore in energy, while spreading the same four
+failures across the array keeps each individual deficit small. The intermediate
+geometry sits between the two in both metrics and is the most stable of the
+three, with a standard deviation of 0.3 points against the 4.8 of the
+contiguous case.
+
+\begin{table}[t]
+\centering
+\caption{Spectral recovery as the number of suppressed channels grows, and by
+failure geometry at $k=4$. Mean $\pm$ standard deviation over three models
+trained on \emph{near}. Photopeak shifts in ADC units.}
+\label{tab:espectro-k}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \textbf{Recovery (\%)} & \textbf{Shift deg.} & \textbf{Shift imp.} \\
+\midrule
+$k=1$ & $83.1 \pm 0.2$ & 1.78 & 0.24 \\
+$k=2$ & $87.2 \pm 0.8$ & 2.80 & 0.34 \\
+$k=3$ & $90.1 \pm 1.7$ & 3.88 & 0.33 \\
+$k=4$ & $88.7 \pm 0.3$ & 4.78 & 0.46 \\
+\midrule
+$k=4$, cluster & $85.6 \pm 4.8$ & 5.03 & 0.63 \\
+$k=4$, near    & $88.7 \pm 0.3$ & 4.78 & 0.46 \\
+$k=4$, scatter & $93.3 \pm 0.4$ & 3.62 & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 %v2.1 Esta grafica es compacta pero uff, igual la que enseña los espectros por zonas es más cuca y se ve el del Na22.  [Checked]
 % Cambiada por espectros_zonas, que ensena los histogramas de verdad en vez del
 % resumen agregado. A doble columna, que con quince paneles no cabe en una.
@@ -1322,9 +1369,161 @@ forward passes per event.
 
 % ---------------------------------------------------------------------
 \section{Discussion}
+\label{sec:discussion}
 % ---------------------------------------------------------------------
+% BOCETO v1. Seis subsecciones. Ninguna cifra que no este ya en Resultados.
 
-Interpretacion, comparacion con el estado del arte y limitaciones.
+\subsection{What the Method Achieves}
+
+The question posed in Section~1 was whether the signal of a failed channel can
+be reconstructed instead of discarded. It can. On detectors the network has
+never seen, imputation removes $56.6 \pm 2.3$\,\% of the positioning error that
+the fault introduces, leaving a residual displacement of 0.28\,mm at P90 --- a
+7.5\,\% of the distance between neighbouring sensors. The energy spectrum
+survives the operation at $84.7 \pm 0.9$\,\%, with a photopeak displaced by
+0.21 ADC units where the uncorrected fault displaces it by 1.8.
+
+Two properties of the approach matter as much as those numbers. The supervision
+is generated from healthy modules, so no detector with a genuinely dead sensor
+is needed to train, and the correction is applied before the centre of gravity
+is computed, so it returns a complete 61-channel vector that any downstream
+stage consumes unchanged.
+
+\subsection{Why a Small Network Suffices}
+
+The result that most constrains the interpretation is that a graph network of
+\num{38305} parameters matches or exceeds every alternative we tried, including
+a graph transformer with a hundred times more parameters. This is not evidence
+that attention mechanisms are ineffective in general; it is evidence about the
+problem. The information that determines the charge of a missing channel is
+concentrated in its immediate surroundings, and once a model has access to it,
+additional capacity has nothing further to extract.
+
+Three independent measurements support that reading. Restricting the linear
+baselines to concentric rings shows that the second ring already captures
+essentially everything: the third adds 0.09 points and the remaining 47
+channels a further 0.04. Architectures with a wider receptive field perform
+three points worse rather than better, which is what one expects when the extra
+context is mostly noise. And permuting the adjacency while preserving the
+degree distribution collapses recovery from 58 to 28\,\%, so what the model
+exploits is the specific geometry of the detector and not the inductive bias of
+message passing.
+
+This is consistent with the physics. Light sharing in a monolithic crystal is a
+local phenomenon: the charge collected by a sensor is determined by the
+interactions that occur near it, and the redundancy that makes imputation
+possible lives in that neighbourhood.
+
+\subsection{What Limits Performance}
+
+If capacity is not the constraint, the natural question is what is. Our
+measurements point away from the model. Nine architectural variants, a doubled
+training budget and a larger parameter count all leave recovery within a point
+of the reference. What does move it, and by far, is which detectors the model
+is measured on: recovery varies between 29 and 63\,\% across individual
+modules, with a standard deviation of 7.9 points, against 0.3 between training
+runs of the same partition.
+
+That comparison sets the terms in which any figure here should be read. The
+relative ordering of models is measured precisely, because every comparison is
+paired over the same modules, events and masks. The absolute value on a new
+detector is far less certain, and the dominant term is hardware variability
+rather than anything about the network. It also suggests where the remaining
+margin lies: not in a better model, but in accounting for the differences
+between modules, which is what a per-module calibration would do.
+
+\subsection{Behaviour Under Multiple Failures}
+
+Training on single failures does not transfer to multiple ones, and the gap is
+the largest effect we measured, 24.6 points. That much was expected. Two
+observations were not.
+
+The first is that the geometry used to generate the training masks barely
+matters once the model sees multiple failures at all. The intermediate geometry
+gains 1.99 points on its own terrain and is indistinguishable from the
+contiguous one elsewhere. The practical recommendation that follows is
+therefore simpler than we anticipated: train with one to four channels
+suppressed, and do not worry much about the pattern.
+
+The second is that the energy spectrum does not degrade as failures accumulate.
+Spectral recovery rises from 83 to 89\,\% between one and four suppressed
+channels, because the damage grows faster than the residual. The metric is a
+ratio, and a larger fault offers more to repair. Read in absolute terms the
+picture is the ordinary one --- four contiguous failures leave 0.63 ADC units of
+residual shift against 0.20 for four scattered ones --- but the operational
+consequence is worth stating: the energy information degrades gracefully, which
+is what a downstream energy window needs.
+
+The two metrics also disagree on which geometry is hardest, and the
+disagreement is instructive. Contiguous groups are the easiest to correct in
+position and the hardest in energy. A compact group displaces the centroid
+enormously but predictably, since the surviving ring around it still describes
+where the light went; the same group removes a large amount of charge from one
+region, and that is harder to restore. Scattered failures behave the opposite
+way. This is a reminder that a single figure of merit would have hidden half of
+the behaviour of the method.
+
+\subsection{Relation to Existing Practice}
+
+Industrial quality control identifies dead pixels and compensates for them
+downstream, either by duplicating events from neighbouring pixels in list mode
+or by interpolating in sinogram space \cite{philips2015deadpixel}. The channel
+itself is never recovered. The approach taken here intervenes earlier, before
+the centre of gravity is computed, and therefore preserves the crystal
+identification that downstream compensation cannot restore.
+
+It also differs from the deep learning work closest to it. Networks trained to
+invert multiplexed readout schemes reconstruct individual channel values from a
+reduced set of measurements \cite{li2023, niu_cnn-based_2024}, and the approach
+extends to semi-monolithic detectors where the full response is recovered from
+row and column sums \cite{loignon-houle_multi-input_2026}. In all of those
+cases the information is present in the acquired data, encoded in a linear
+combination fixed by design, and the network learns to invert a known mapping.
+A failed channel is a different problem: nothing of its signal reaches the
+acquisition, and the only remaining trace is the statistical correlation that
+light sharing induces among its neighbours. That the reconstruction is possible
+at all is a consequence of the monolithic geometry.
+
+% TODO(discusion): decidir si comparar con Jimenez Algarra y Hidalgo-Torres.
+% Trabajan sobre este mismo detector pero resuelven POSICIONAMIENTO, no
+% imputacion, y con datos simulados. La comparacion util no es de cifras
+% -no son comparables- sino de encaje: su red estima la posicion a partir de
+% los 61 canales, la nuestra repara el vector de 61 canales antes de que esa
+% estimacion ocurra. Son piezas consecutivas del mismo sistema.
+
+\subsection{Limitations}
+
+Four limitations bound what the preceding results support.
+
+The test partition contains five modules. Given the variability between
+detectors, that places the standard error of any absolute figure at
+approximately 3.5 points, and it is the reason we report cross-validated values
+rather than the result of a single partition.
+
+No energy calibration was applied. The spectral metric is constructed as a
+paired difference so that the missing calibration cancels, but this means the
+results describe the conservation of the spectrum rather than its absolute
+accuracy in keV.
+
+The simulated fault is a total suppression. Real degradation is often partial:
+a channel that retains part of its response, or drifts with temperature. The
+method has not been evaluated in that regime, and it is not obvious that a
+model trained on complete failures transfers to it.
+
+Finally, the worst-channel figure turned out to be unusable as a robustness
+metric. Its variation across training runs, $\pm 4.5$ points, exceeds any
+difference we could have attributed to a design choice, and the channel
+attaining the minimum is not stable. We report it descriptively and draw no
+conclusion from it.
+
+\subsection{Future Work}
+
+Three directions follow directly. A per-module calibration would address the
+dominant source of uncertainty identified above. Extending the training masks
+to partial degradation would cover the failure mode the current model does not
+see. And the 62 modules with genuine defects, of which 18 are annotated so far,
+offer a validation against expert criterion that no synthetic injection can
+replace.
 
 
 % ---------------------------------------------------------------------
