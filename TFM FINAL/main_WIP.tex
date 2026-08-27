@@ -241,7 +241,10 @@ light yield and energy resolution than square, triangular or cylindrical
 prisms \cite{perez-benito_scintillator_2023}. Each module is built around a monolithic LYSO crystal
 \cite{perez-benito_laser-microstructured_2025}.
 
-\begin{figure}[t]
+%v2.1: esta imagen hay que ponerla en el bottom de la pagina 1, para dejar más peso visual en la primera plana. [Checked]
+% [!b] la manda al pie de pagina; la ! relaja los limites que por defecto
+% impiden colocar ahi un flotante de este tamano.
+\begin{figure}[!b]
 \centering
 \includegraphics[width=\linewidth]{escaner}
 \caption{\textbf{TEMPORAL}Three-dimensional model of the quasi-spherical, hexagonal-based
@@ -825,7 +828,7 @@ Section~\ref{sec:res-variability} quantifies how far that precision extends.
 
 We implemented the models in PyTorch, and the data pipeline, the evaluation and
 the figures in Python with NumPy, SciPy and Matplotlib. Training ran on a single
-NVIDIA GeForce GTX 1660 SUPER with an AMD Ryzen 5 3600X host.
+NVIDIA GeForce GTX 1660 SUPER with an AMD Ryzen 5 3600X personal computer.
 
 
 % ---------------------------------------------------------------------
@@ -863,13 +866,14 @@ position but does not happen in the experiments.
 \subsection{Recovery of the Reconstructed Position}
 \label{sec:res-position}
 
-Charge error is an intermediate quantity. What reaches the image is the
+%v2.1: He cambiado un par de cosas que me sonaban raro. 
+Charge error is an good indicator, but what reaches the image is the
 displacement of the centroid, and Table~\ref{tab:position} gives it in
 millimetres. Suppressing a channel moves the reconstructed position of the
 affected events by a median of 0.099\,mm and, for the worst tenth of them, by
 0.666\,mm. After imputation those figures fall to 0.047\,mm and 0.283\,mm, so
 the residual displacement at P90 is 7.5\,\% of the 3.75\,mm sensor pitch. The
-degraded column is identical across the four models, as it must be, since it
+degraded column is identical across the four models, since it
 does not depend on the imputation; it serves as a consistency check on the
 evaluation.
 
@@ -891,7 +895,6 @@ P90    & 0.666 & $0.283 \pm 0.004$ & $58.04 \pm 0.37$ \\
 \end{tabular}
 \end{table}
 
-%Es 
 Fig.~\ref{fig:linediff} shows what this means for the image. Each panel is the
 difference between a flood map and the intact reference, averaged over failures
 of the sensors along one line of the array. Without correction the difference
@@ -915,6 +918,7 @@ sensors involved and the green outline the crystal boundary.}
 \label{fig:linediff}
 \end{figure*}
 
+
 Performance is not uniform across the detector. Fig.~\ref{fig:mapa} maps the
 recovery of each of the 61 channels and reproduces the same core-to-edge
 gradient. Central channels, whose light is shared with six neighbours, exceed
@@ -937,7 +941,7 @@ after imputation.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{floodmap}
+\includegraphics[width=0.92\textwidth]{floodmap.png}
 \caption{Flood map of a test module reconstructed from the same events. Left,
 with all 61 channels operational; centre, with one channel disabled; right,
 after imputing it.}
@@ -1062,24 +1066,30 @@ the same four runs.
 
 \subsection{Multiple Simultaneous Failures}
 \label{sec:res-multidead}
+%v2.1 Esta seccion en general esta un poco mal explicada, es dificil seguirla mira los comentarios que te dejo. [Checked]
+% Reescrita entera. El problema de fondo era que "cluster", "near" y "scatter"
+% designan dos cosas a la vez -con que geometria se ENTRENA y con cual se
+% EVALUA- y el texto saltaba de una a otra sin avisar. Ahora la tabla lo
+% etiqueta explicitamente y el texto no usa nunca "intermediate regime".
 
-Training with a single suppressed channel does not transfer to multiple
-failures. Table~\ref{tab:multidead} reports recovery averaged over $k=1\dots4$
-suppressed channels in the three regimes of
-Section~\ref{sec:regimes}. A model trained on single failures drops to
-33.74\,\% on contiguous ones, and its standard deviation across runs rises to
-11.68 points because it performs adequately at $k=1$ and collapses at $k=4$.
-Models trained with $k$ drawn from 1 to 4 stay between 52\,\% and 59\,\% in
-every regime, with standard deviations below 0.7 points.
+Two questions arise once more than one channel fails at a time: whether a model
+trained on single failures still works, and whether the geometry used to
+generate the training masks matters. They are separate questions, and
+Table~\ref{tab:multidead} answers both. Its rows are the geometry a model was
+\emph{trained} on and its columns the geometry it is \emph{evaluated} on, so the
+diagonal is each model on its own terrain.
 
 \begin{table}[t]
 \centering
-\caption{Recovery at P90 by failure regime, averaged over
-$k=1\dots4$ suppressed channels, over a campaign of 20 mask seeds.}
+\caption{Recovery at P90 averaged over $k=1\dots4$ suppressed channels, over a
+campaign of 20 mask seeds. Rows are the failure geometry used to generate the
+training masks; columns the geometry used at evaluation.}
 \label{tab:multidead}
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Training regime} & \textbf{Cluster} & \textbf{Near} & \textbf{Scatter} \\
+& \multicolumn{3}{c}{\textbf{Evaluated on}} \\
+\cmidrule(l){2-4}
+\textbf{Trained on} & \textbf{Cluster} & \textbf{Near} & \textbf{Scatter} \\
 \midrule
 Single channel ($n{=}3$)
   & $33.74 \pm 11.68$ & $38.28 \pm 9.23$ & $47.69 \pm 4.95$ \\
@@ -1091,36 +1101,49 @@ Near, $k{=}1\!-\!4$ ($n{=}3$)
 \end{tabular}
 \end{table}
 
-The gap between the first row and the other two is the largest effect we
-measured: 24.6 points on contiguous failures and 16.3 on the intermediate
-regime. Exposing the model to multiple failures during training is what
-determines whether it survives them, and the cost of doing so is negligible,
-since the multi-failure models lose nothing at $k=1$.
+The answer to the first question is that it does not transfer. The model trained
+on single failures drops to 33.74\,\% on contiguous ones, against the 58.31\,\%
+of a model trained with one to four channels: a gap of 24.6 points, the largest
+effect we measured. Its standard deviation across runs also rises to 11.68
+points, because it still performs adequately at $k=1$ and collapses at $k=4$, so
+the average hides two very different behaviours. Exposing the model to multiple
+failures during training is therefore what determines whether it survives them,
+and it costs nothing, since the multi-failure models lose no accuracy at $k=1$.
 
-Which regime is used for that training matters far less. The model trained on
-the intermediate regime exceeds the one trained on contiguous clusters by 1.99
-points in its own regime, a difference of 2.9 standard deviations, and the two
-are indistinguishable on contiguous failures ($-0.14$ points) and on scattered
-ones ($+0.99$ points, 1.3 standard deviations).
+%v2.1 No Entiendo nada aquí que es intermediate regime, el entrenamiento en near? Es que es confuso . [Checked]
+%v2.1De nuevo que es intermediate, pon "near" o "cluster" no se. [Checked]
+The answer to the second question is that the training geometry matters much
+less. Comparing the last two rows, the model trained on \emph{near} exceeds the
+one trained on \emph{cluster} by 1.99 points when both are evaluated on
+\emph{near}, a difference of 2.9 standard deviations. On the other two
+geometries they are indistinguishable: $-0.14$ points on contiguous failures and
+$+0.99$ on scattered ones, the latter at 1.3 standard deviations. Training on
+the intermediate geometry therefore buys a small advantage on its own terrain
+and loses nothing elsewhere, which is why we use it as the production
+configuration.
 
-The behaviour across regimes deserves care, because the relative and absolute
-readings point in opposite directions (Table~\ref{tab:regimes-k}). In recovery,
-contiguous failures are the \emph{easiest} case for every $k \ge 2$: 57.7\,\%
-at $k=4$ against 50.7\,\% for scattered ones. In millimetres they are the
-worst: a contiguous group of four displaces the centroid by 1.480\,mm at the
-P90, twice as much as four scattered channels, and after imputation
-still leaves 0.628\,mm against 0.366\,mm. Both statements come from the same
-runs. Recovery is a ratio, and a fault that causes more damage offers more
-damage to undo, so a larger fraction repaired can coexist with a larger
-residual error. Scattered failures are the least damaging in absolute terms
-and, at the same time, the hardest to correct proportionally.
-Fig.~\ref{fig:multidead} shows the same behaviour as a function of $k$.
+%v2.1 De nuevo, la tabla 5 enseña los tres regimenes, y aqui usas intermediate. [Checked]
+The evaluation geometries themselves behave in a way that deserves care, because
+the relative and the absolute readings point in opposite directions.
+Table~\ref{tab:regimes-k} follows a single model, the one trained on
+\emph{near}, as $k$ grows. In recovery, contiguous failures are the
+\emph{easiest} case for every $k \ge 2$: 57.7\,\% at $k=4$ against 50.7\,\% for
+scattered ones. In millimetres they are the worst: four contiguous channels
+displace the centroid by 1.480\,mm at P90, twice as much as four scattered ones,
+and after imputation still leave 0.628\,mm against 0.366\,mm.
+
+Both readings come from the same runs, and the reason they disagree is that
+recovery is a ratio. A fault that causes more damage offers more damage to
+undo, so a larger repaired fraction can coexist with a larger residual error.
+Scattered failures are the least damaging in absolute terms and, at the same
+time, the hardest to correct proportionally. Fig.~\ref{fig:multidead} shows both
+quantities as a function of $k$.
 
 \begin{table}[t]
 \centering
-\caption{Recovery and residual displacement by regime as the number of
-suppressed channels grows, for the model trained on the intermediate regime
-($n=3$). Displacements at P90, in millimetres.}
+\caption{Recovery and residual displacement as the number of suppressed
+channels grows, for the model trained on \emph{near} ($n=3$) evaluated under the
+three geometries. Displacements at P90, in millimetres.}
 \label{tab:regimes-k}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
@@ -1137,13 +1160,21 @@ $k$ & Clus. & Near & Scat. & Clus. & Near & Scat. \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+%v2.1 Esta figura es en concreto para un modelo near, entrenado con varios channels supressed. [Checked]
+%He puesto un caption más acorde, un poco largo pero bueno, y la figura no se ve una mierda, hay que ajustar. [Checked: a doble columna]
+%Si es muy grande igual puedo generar una con dos paneles, P90 y error en mmm
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\linewidth]{multidead_curve}
-\caption{Recovery as a function of the number of simultaneously suppressed
-channels, for a model trained on single failures and one trained on one to four.}
+\includegraphics[width=0.9\textwidth]{multidead_curve}
+\caption{Recovery and residual error against the number of simultaneously
+suppressed channels, for the model trained on \emph{near} with one to four
+channels and evaluated under the three failure geometries. Left, recovery at
+P90; right, absolute displacement at P90, with the degraded case dashed for
+reference. The two panels show the opposing readings discussed in the text:
+contiguous failures give the highest recovery and, at the same time, the largest
+residual error.}
 \label{fig:multidead}
-\end{figure}
+\end{figure*}
 
 \subsection{Physical Fidelity}
 \label{sec:res-fidelity}
@@ -1194,6 +1225,7 @@ error is zero by construction. The width of each distribution is the quantity
 reported as FWHM in Eq.~\ref{eq:fwhm}.}
 \label{fig:resolucion}
 \end{figure}
+%v2.1Se va a experimentar con multidead para añadir estos resultados. 
 
 The energy spectrum is preserved to a comparable degree, with a global spectral
 recovery of $84.7 \pm 0.9$\,\% ($n=3$, Fig.~\ref{fig:espectro}). Here the
@@ -1203,45 +1235,89 @@ residual shift of the photopeak stays at $0.21 \pm 0.02$ ADC units across the
 three zones, against the 1.6 to 1.9 ADC units that the fault introduces before
 correction.
 
-\begin{figure}[t]
+%v2.1 Esta grafica es compacta pero uff, igual la que enseña los espectros por zonas es más cuca y se ve el del Na22.  [Checked]
+% Cambiada por espectros_zonas, que ensena los histogramas de verdad en vez del
+% resumen agregado. A doble columna, que con quince paneles no cabe en una.
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\linewidth]{espectro}
-\caption{Energy spectrum by crystal zone for the original, degraded and imputed
-events. Zones are concentric hexagonal bands from the centre to the perimeter.}
+\includegraphics[width=\textwidth]{espectros_zonas}
+\caption{Energy spectra of the affected events for five channels (columns) and
+the three crystal zones (rows), comparing the original distribution in grey with
+the degraded one in orange and the imputed one in blue. The 511\,keV photopeak
+of $^{22}$Na is visible in the core and middle rows and flattens towards the
+edge, where the absorbing adhesive removes part of the collected light. The
+degraded curve departs from the original towards lower energies, and imputation
+brings it back; the per-panel figure is the spectral recovery.}
 \label{fig:espectro}
-\end{figure}
+\end{figure*}
 
 \subsection{Variants That Did Not Improve the Model}
 \label{sec:res-negative}
 
-Several of the alternatives described in
-Sections~\ref{sec:arch} and \ref{sec:training} failed to improve on the
-reference, and the reasons are informative.
+%v2.1Muy cutres estas secciones, hay que añadir ecuaciones, ya que en materiales y metodos apenas se dicen en 2 frases, si se ha usado se debe de desarrollar.  [Checked]
+%v2.1 De nuevo, ecuaciones, parametros, etc... [Checked]
+%v2.1 Que ensembles se hicieron,etc... [Checked]
+Four of the alternatives outlined in Sections~\ref{sec:arch} and
+\ref{sec:training} failed to improve on the reference. We report them with the
+form each one took, because in three of the four the reason for the failure lies
+in that form rather than in the idea behind it.
 
-Adding the position error to the loss changes recovery from 58.0\,\% to
-58.2\,\%, within the run-to-run band. This is not surprising in hindsight:
-charge and position are related monotonically for a given channel, so the term
-is largely redundant with the MSE already being minimised.
+\subsubsection{Physics-informed terms}
+Both variants add a penalty to the loss of Eq.~\ref{eq:loss},
+%
+\begin{equation}
+\mathrm{Loss} = \mathrm{Loss}_{\mathrm{MSE}} + \lambda \, \Phi,
+\label{eq:physloss}
+\end{equation}
+%
+with $\Phi$ the physical quantity to preserve. We calibrated $\lambda$ in each
+case so that both terms contribute comparably at the start of training.
 
-Adding a term on the energy spectrum is actively harmful, dropping recovery to
-46.0\,\% and inverting the sign of the bias. The cause is the form of the term
-rather than the quantity it targets. Spectral agreement is computed over a
-batch, so the penalty acts on a signed average, and the model can reduce it by
-letting errors of opposite sign cancel between events. It optimises the
-aggregate while degrading every individual event, which is precisely what the
-per-event metrics detect. Any physics-informed term for this problem needs to
-be computed per event.
+The first uses the squared displacement of the centroid,
+$\Phi_{\Delta R} = \Delta R^{2}$ with $\lambda = 0.01$, computed with the same
+charge-weighted centroid as the evaluation metric. It changes recovery from
+58.0\,\% to 58.2\,\%, inside the run-to-run band. The term turns out to be
+largely redundant: for a given channel, charge and position are related
+monotonically, so penalising the position error adds little that the MSE on the
+charge was not already penalising.
 
-Predicting a variance alongside the mean, trained with a Gaussian negative
-log-likelihood, reaches 20.1\,\%. The likelihood lets the model reduce its loss
-by declaring large uncertainty instead of improving the prediction, and with no
-constraint tying the variance to a calibration target it takes that route.
+The second targets the energy spectrum, $\Phi_{E} = \lvert \Delta R_{T} \rvert$
+with $\lambda = 0.7$, where $\Delta R_{T}$ is the shift in mean total charge.
+This one is actively harmful: recovery falls to 46.0\,\% and the bias changes
+sign. The cause is the form of the term and not the quantity it targets. The
+shift is computed over a batch, so the penalty acts on a \emph{signed average}
+and the model can reduce it by letting errors of opposite sign cancel between
+events. It optimises the aggregate while degrading every individual event, which
+is exactly what the per-event metrics detect. A physics-informed term for this
+problem has to be computed per event.
 
-Ensembling, however, does help, if modestly. Averaging three independently
-trained replicas raises recovery to 58.69\,\% and averaging three different
-architectures to 58.73\,\%, against $58.04 \pm 0.37$\,\% for a single model.
-Both are the only variants we found that exceed the reference band, and the
-gain is around 0.7 points at three times the inference cost.
+\subsubsection{Heteroscedastic prediction}
+Here the network outputs a mean and a log-variance per channel and trains on the
+Gaussian negative log-likelihood,
+%
+\begin{equation}
+\mathrm{Loss}_{\mathrm{NLL}} = \frac{(y_{c} - \mu_{c})^{2}}{2\sigma_{c}^{2}}
+                             + \log \sigma_{c},
+\label{eq:nll}
+\end{equation}
+%
+which would let the model flag the events it cannot impute reliably. It reaches
+20.1\,\%. The likelihood offers two ways of lowering the loss, improving $\mu$
+or inflating $\sigma$, and with nothing tying $\sigma$ to a calibration target
+the second is cheaper. The model learns to declare uncertainty instead of
+learning to predict.
+
+\subsubsection{Ensembles}
+Averaging the outputs of several models is the only variant that exceeds the
+reference band, and it does so modestly. We tested two compositions. The first
+averages three replicas of the reference, identical except for the random seed,
+and reaches 58.69\,\%. The second averages three different architectures ---
+\textsc{HexGNN} with isotropic mean aggregation, PNA with multiple aggregators
+and a directional hexagonal convolution --- on the assumption that their errors
+would be less correlated, and reaches 58.73\,\%. Against $58.04 \pm 0.37$\,\%
+for a single model, both gain about 0.7 points, and the heterogeneous
+composition adds almost nothing over the homogeneous one. The cost is three
+forward passes per event.
 
 
 % ---------------------------------------------------------------------
