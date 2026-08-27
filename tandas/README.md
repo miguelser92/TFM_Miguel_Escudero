@@ -20,7 +20,7 @@ detiene si un paso falla.
 | noche_mix_estabilidad.ps1 | 20 ago | NO estabiliza: sd 3,31 vs 4,45 pero F=1,81 p=0,750, y la media empeora -0,65. El minimo sobre 61 canales es ruidoso de por si |
 | noche_espectro_resolucion.ps1 | 24 ago | Espectro 84,7 +/- 0,9 % (la mejora esta en el nucleo, el borde no se mueve) y resolucion 47,3 +/- 0,9 % de blur. Las dos metricas fisicas del paper pasan de n=1 a n=3 |
 | noche_cv_completa.ps1 | 26 ago | (pendiente) Validacion cruzada con cobertura completa: la ultima cifra del protocolo viejo que sigue en el paper. NO estrechara la banda (+/-2 viene de tener 5 modulos en test), solo da coherencia de protocolo |
-| noche_espectro_multidead.ps1 | 27 ago | (pendiente) Conservacion del espectro con 1..4 canales muertos sobre los tres 'near'. Cierra el hueco de que toda la fidelidad fisica estaba medida con un solo canal |
+| noche_espectro_multidead.ps1 | 28 ago | El espectro NO se degrada al crecer k: 83,1 % con un canal y 88,7 % con cuatro, y el residuo crece menos que el dano. En k=4 el orden entre regimenes se INVIERTE respecto a la posicion, lo que da el argumento fuerte para 'near' |
 
 **Fase experimental cerrada el 20/08.** Cinco noches, ~68 h de computo. Lo que queda es redaccion.
 
