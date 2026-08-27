@@ -10,9 +10,15 @@
 #  y la bibliografia. Pero no tienen por que estar a la vista.
 # =====================================================================
 
-# Auxiliares a .build, PDF en la carpeta (que es donde lo busca el visor).
+# TODO a .build, incluido el PDF. compilar.ps1 lo copia despues a la carpeta.
+#
+# OJO, no separar aux_dir de out_dir. Con $aux_dir='.build' y $out_dir='.'
+# latexmk deja ademas un .aux TRUNCADO en la carpeta, y bibtex lee ese en vez
+# del bueno: falla con "I found no \bibdata command" aunque el .aux de .build
+# este perfecto. Pasa solo cuando hay bibliografia, asi que el error aparece
+# de repente y no donde uno lo busca.
 $aux_dir = '.build';
-$out_dir = '.';
+$out_dir = '.build';
 
 # pdflatex + bibtex, sin parar en el primer aviso.
 $pdf_mode = 1;

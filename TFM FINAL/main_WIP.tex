@@ -1601,9 +1601,63 @@ system-level result.
 
 % ---------------------------------------------------------------------
 \section{Conclusions}
+\label{sec:conclusions}
 % ---------------------------------------------------------------------
+% Adaptado del boceto de Miguel (v2.2). Cambios de fondo respecto a ese
+% boceto, todos por coherencia con lo que el paper ya afirma:
+%   - "58 % en el mejor de los casos" -> 56,6 +/- 2,3. La 3.4 cierra
+%     explicitamente que 56,56 +/- 2,32 es la cifra para hardware no visto;
+%     dar 58 aqui contradice esa seccion.
+%   - Fuera la reduccion de dosis y de tiempo de adquisicion: no se ha
+%     medido ninguna de las dos. Queda la idea que si se sostiene, que es
+%     no tirar informacion ya adquirida.
+%   - "como se reviso en los datos reales" -> los 62 modulos defectuosos se
+%     INSPECCIONARON para sacar los patrones; la evaluacion es sintetica.
+%     La 4.3 dice justo eso dos paginas antes.
+%   - Cristal monolitico = centelleador, no fotomultiplicador.
+%   - Anadido el espectro (84,7 %) y la autosupervision, que el boceto no
+%     mencionaba y son la mitad del resultado.
 
-Conclusiones y lineas futuras.
+We have presented a deep learning method that recovers the signal lost to a
+faulty SiPM channel in a monolithic PET detector instead of discarding it.
+Monolithic scintillators are cheaper to produce than pixelated arrays and they
+do not impose a segmentation on the information that reaches the reconstruction
+stage, but they pay for it with a readout in which every sensor contributes to
+every event: when one channel fails, the flood map degrades across the whole
+crystal and the module is normally set aside. Recovering that channel is
+therefore a way of keeping detectors, and the events they have already
+acquired, that current practice gives up.
+
+The method is a graph neural network, \textsc{HexGNN}, built on the geometry of
+the array rather than on top of it: one node per sensor, one edge between
+adjacent sensors, and message passing along the same paths through which the
+light is shared. It has \num{38305} parameters. Its supervision comes from
+healthy modules --- we suppress a channel whose true value we know --- so no
+detector with a genuine fault is needed in order to train it, and the
+correction is applied before the centre of gravity is computed, which returns a
+complete 61-channel vector that the rest of the processing chain consumes
+unchanged.
+
+On modules the network had never seen, imputation removes $56.6 \pm 2.3$\,\% of
+the positioning error introduced by the fault, leaving a residual displacement
+of 0.28\,mm at P90, and it preserves the energy spectrum to
+$84.7 \pm 0.9$\,\%. Training with one to four simultaneous failures, following
+the patterns we observed in the flood maps of the 62 defective modules of the
+batch, extends that behaviour to several dead channels at no cost in the
+single-channel case.
+
+What this work leaves is a working baseline, not a closed problem. The ceiling
+we measured is set by the data rather than by the network: real acquisitions,
+uncalibrated in energy, and a fault that has to be injected because a genuine
+one leaves no reference against which to measure the error. Each of those
+points to a line of work. A calibrated or controlled acquisition would separate
+what belongs to the method from what belongs to the hardware; the annotated
+defective modules offer a validation against expert criterion that no synthetic
+fault can provide; and propagating imputed events through a full reconstruction
+is the step that would turn a per-detector correction into a system-level
+result. What can be stated already is that the information needed to repair a
+dead channel is present in its neighbours, and that a small network with the
+geometry of the detector built into it is enough to extract it.
 
 
 % ---------------------------------------------------------------------

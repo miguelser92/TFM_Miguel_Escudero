@@ -55,7 +55,8 @@ if (Test-Path $log) {
 }
 
 if ($code -eq 0 -and $errores -eq 0) {
-    # el PDF ya queda en la carpeta: .latexmkrc pone out_dir en '.'
+    # Todo se genera en .build (ver la nota del .latexmkrc); aqui solo sube el PDF.
+    Copy-Item (Join-Path $build "$Documento.pdf") $raiz -Force
     Write-Host "  OK  $Documento.pdf  ($paginas paginas)"
     if ($citas) { Write-Host "  AVISO: $citas citas sin resolver" -ForegroundColor Yellow }
     if ($refs)  { Write-Host "  AVISO: $refs referencias sin resolver" -ForegroundColor Yellow }
