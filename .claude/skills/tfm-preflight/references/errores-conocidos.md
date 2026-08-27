@@ -135,4 +135,25 @@ Este fichero es acumulativo: no se borran entradas aunque estén corregidas. Una
 
 ---
 
+### E12 — Un `.ps1` con caracteres no ASCII no parsea en PowerShell 5.1
+
+- **Qué pasó:** el nombre de una tarea llevaba un guion largo (`—`). PowerShell 5.1 lee los `.ps1` como **ANSI, no UTF-8**, así que ese carácter se convierte en `â€”`, y como estaba **dentro de una cadena con interpolación** descuadró las comillas y el script entero dejó de parsear. Diez errores de sintaxis en cascada, ninguno señalando la causa real.
+- **Síntoma observable:** `Token '$(' inesperado`, `El literal de hash estaba incompleto`, `Falta la llave de cierre`, todos apuntando a líneas que están bien. Si los errores no tienen sentido, sospechar de la codificación antes que de la lógica.
+- **Detalle que despista:** los otros catorce scripts tenían el mismo `—` y funcionaban, porque allí estaba **dentro de un comentario**, donde PowerShell no parsea sintaxis. El fallo solo aparece cuando el carácter cae en código.
+- **Detección**, antes de entregar cualquier `.ps1`:
+  ```python
+  b = open(ruta, 'rb').read()
+  assert not any(x > 127 for x in b), 'el .ps1 tiene bytes no ASCII'
+  ```
+  Y la comprobación definitiva, que además valida la sintaxis entera sin ejecutar nada:
+  ```powershell
+  $e = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($ruta, [ref]$null, [ref]$e)
+  if ($e.Count) { $e[0].Message }
+  ```
+- **Arreglo:** los quince `.ps1` pasados a ASCII puro (guiones largos, `¿`, flechas y acentos sustituidos) y verificados con el parser.
+- **Estado:** corregido 27/08. **Escribir los `.ps1` solo en ASCII**, y pasarles el parser antes de dárselos a Miguel: un script que no arranca le cuesta la noche entera.
+
+---
+
 <!-- Entradas nuevas debajo de esta línea, numeración correlativa. Cada una necesita su receta de detección. -->

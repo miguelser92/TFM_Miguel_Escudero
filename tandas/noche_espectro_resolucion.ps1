@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_espectro_resolucion.ps1 — las dos metricas fisicas, con banda
+#  noche_espectro_resolucion.ps1 - las dos metricas fisicas, con banda
 # =====================================================================
 #  HIPOTESIS: la conservacion del espectro y la recuperacion de resolucion
 #  se mantienen con el protocolo corregido, y por primera vez con barra de

@@ -1,5 +1,5 @@
 # =====================================================================
-#  eval_noche.ps1 — tanda de evaluaciones desatendida
+#  eval_noche.ps1 - tanda de evaluaciones desatendida
 # =====================================================================
 #  Lanza en orden las evaluaciones pendientes y deja un log con tiempos
 #  y codigos de salida. NO se detiene si una falla: las demas siguen,

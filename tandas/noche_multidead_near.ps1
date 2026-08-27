@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_multidead_near.ps1 — la comparacion que de verdad decide near
+#  noche_multidead_near.ps1 - la comparacion que de verdad decide near
 # =====================================================================
 #  HIPOTESIS: 'near' sigue ganando en los tres regimenes de fallo cuando
 #  ambos modelos se entrenan con cobertura completa.

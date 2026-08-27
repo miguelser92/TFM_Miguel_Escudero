@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_cv_near.ps1 — cerrar la barra de particion + fallo realista
+#  noche_cv_near.ps1 - cerrar la barra de particion + fallo realista
 # =====================================================================
 #  1 y 2) DOS PARTICIONES MAS DE VALIDACION CRUZADA (D y E).
 #     Con tres particiones la desviacion entre ellas (1.55 puntos) sigue

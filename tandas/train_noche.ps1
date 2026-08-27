@@ -1,5 +1,5 @@
 # =====================================================================
-#  train_noche.ps1 — tanda de ENTRENAMIENTOS + sus evaluaciones
+#  train_noche.ps1 - tanda de ENTRENAMIENTOS + sus evaluaciones
 # =====================================================================
 #  Orden por valor esperado. Cada entrenamiento va seguido de su
 #  eval_total, para que por la manana haya numeros y no solo pesos.

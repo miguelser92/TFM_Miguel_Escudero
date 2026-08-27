@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_banda.ps1 — la barra de error del peor canal, bien muestreada
+#  noche_banda.ps1 - la barra de error del peor canal, bien muestreada
 # =====================================================================
 #  QUE PROBLEMA RESUELVE
 #

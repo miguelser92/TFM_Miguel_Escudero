@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_near_completo.ps1 — el modelo recomendado, con el protocolo bueno
+#  noche_near_completo.ps1 - el modelo recomendado, con el protocolo bueno
 # =====================================================================
 #  HIPOTESIS: 'near' sigue siendo el mejor modelo general con cobertura
 #  completa, y su banda de error permite reportarlo en la memoria.

@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_curva.ps1 — curva de aprendizaje + replicas reproducibles
+#  noche_curva.ps1 - curva de aprendizaje + replicas reproducibles
 # =====================================================================
 #  1) CURVA DE APRENDIZAJE (lo que convierte el techo en una curva)
 #     Hasta ahora el techo se apoya en UN punto: 40 modulos frente a 149.

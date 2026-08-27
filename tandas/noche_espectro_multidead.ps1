@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_espectro_multidead.ps1 — ¿se conserva el espectro con varios
+#  noche_espectro_multidead.ps1 - se conserva el espectro con varios
 #  canales muertos?
 # =====================================================================
 #  QUE HUECO CIERRA. Toda la seccion de fidelidad fisica del paper esta
@@ -61,7 +61,7 @@ foreach ($c in $configs) {
         $camp = if ($c.k -eq 1) { "ESPECTRO_k1_$($c.modo)" } else { "ESPECTRO_k$($c.k)_$($c.modo)" }
         $hecho = Join-Path $raiz "runs\$m\$camp\eval_espectro_metrics.json"
         if (Test-Path $hecho) { Write-Host "  ya hecho, se salta: $camp $($m.Substring($m.Length-8))"; continue }
-        $tareas += @{ n = "ESPECTRO k=$($c.k) $($c.modo) — $($m.Substring($m.Length-8))"
+        $tareas += @{ n = "ESPECTRO k=$($c.k) $($c.modo) - $($m.Substring($m.Length-8))"
                       a = @('eval_espectro.py', $m, '--dead', "$($c.k)",
                             '--deadmode', $c.modo, '--out', $camp) }
     }

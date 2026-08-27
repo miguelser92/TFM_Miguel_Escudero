@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_mix_estabilidad.ps1 — ¿mezclar modulos estabiliza el peor canal?
+#  noche_mix_estabilidad.ps1 - mezclar modulos estabiliza el peor canal?
 # =====================================================================
 #  HIPOTESIS: --mix reduce la DISPERSION del peor canal, aunque el 10/08
 #  ya se midiera que no mejora la media.
@@ -66,7 +66,7 @@ function Log($msg) {
 }
 
 $t0 = Get-Date
-Log "=== MIX 4: ¿baja la dispersion del peor canal? ==="
+Log "=== MIX 4: baja la dispersion del peor canal? ==="
 Log "commit: $commit"
 if ($sucio) { Log "AVISO: arbol SUCIO, el run no sera reproducible desde $commit" }
 Log "log: $log"

@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_replicas.ps1 — confirmar los dos resultados de ayer
+#  noche_replicas.ps1 - confirmar los dos resultados de ayer
 # =====================================================================
 #  Ayer aparecieron dos resultados que cambian conclusiones del trabajo,
 #  y los dos descansan sobre UN solo entrenamiento cada uno. Antes de

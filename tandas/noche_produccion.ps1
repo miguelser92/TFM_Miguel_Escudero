@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_produccion.ps1 — el modelo final y la ultima hipotesis abierta
+#  noche_produccion.ps1 - el modelo final y la ultima hipotesis abierta
 # =====================================================================
 #  1) MODELO DE PRODUCCION CANDIDATO: regimen 'near' + presupuesto doble.
 #     Junta las dos cosas que sabemos que funcionan y que actuan sobre

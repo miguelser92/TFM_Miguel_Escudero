@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_protocolo_bueno.ps1 — el modelo de referencia, bien entrenado
+#  noche_protocolo_bueno.ps1 - el modelo de referencia, bien entrenado
 # =====================================================================
 #  Tres entrenamientos con el protocolo corregido: cobertura completa
 #  (los 149 modulos), mismo presupuesto de siempre (~16M muestras).

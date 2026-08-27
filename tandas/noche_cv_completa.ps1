@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_cv_completa.ps1 — la validacion cruzada con el protocolo bueno
+#  noche_cv_completa.ps1 - la validacion cruzada con el protocolo bueno
 # =====================================================================
 #  QUE ARREGLA. La cifra que el paper usa para describir el rendimiento en
 #  hardware nuevo -56,56 +/- 2,32 %- sale de cinco particiones entrenadas

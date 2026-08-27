@@ -1,5 +1,5 @@
 # =====================================================================
-#  noche_presupuesto_cv.ps1 — el ultimo flanco del techo + validacion cruzada
+#  noche_presupuesto_cv.ps1 - el ultimo flanco del techo + validacion cruzada
 # =====================================================================
 #  1) PRESUPUESTO x2 (lo mas importante). El techo esta demostrado frente a
 #     arquitectura (nueve palancas) y frente a diversidad de modulos (la curva
