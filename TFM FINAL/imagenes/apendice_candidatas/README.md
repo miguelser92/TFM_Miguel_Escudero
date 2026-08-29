@@ -1,5 +1,11 @@
 # Candidatas a apéndice
 
+> **Estado (28 ago).** El apéndice ya está escrito en `main_WIP - appx.tex`, con
+> cinco secciones (A arquitecturas, B particiones, C módulos Bad, D espectros,
+> E estadística por sensor). De esta carpeta entraron **`A1`, `A2` y `C1`**;
+> el resto sigue aquí por si se recupera. Lo demás del apéndice son tablas
+> nuevas, no figuras.
+
 Copias de figuras que **no están en el cuerpo del paper** (salvo `A1`, que sí
 está y se plantea mover aquí). Los originales siguen en su sitio: esta carpeta
 se puede borrar entera sin perder nada.

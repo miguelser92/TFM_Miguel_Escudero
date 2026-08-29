@@ -54,12 +54,20 @@ ejecutados.
 
 Se dejan en la carpeta por si se recuperan, pero **el `.tex` no las cita**.
 
-## Candidatas a apéndice
+## Apéndice
 
-`apendice_candidatas/` tiene copias de las figuras que podrían ir a un apéndice,
-con su propio README explicando qué sostiene cada una y cuáles recomiendo. Son
-copias: los originales no se han movido, y la carpeta se puede borrar entera sin
-consecuencias. El `.tex` no la usa todavía.
+Usadas por `main_WIP - appx.tex`, que es la versión con apéndice. El `main_WIP.tex`
+normal no las cita.
+
+| Fichero | Fig. | Origen | Nota |
+|---|---|---|---|
+| `espectros_zonas.png` | 10 | ya descrita arriba | **movida** de Resultados al Apéndice D |
+| `espectros_zonas_k4.png` | 11 | `runs/imputer_hexcnn_s_mse_dead1-4_near_banda11/ESPECTRO_k4_near/espectros.png` | recortados 81 px de cabecera, que es justo lo que se le quitó a la de k=1: así las dos quedan a la misma escala y se comparan panel a panel |
+| `stats_por_sensor.png` | 12 | `runs/imputer_hexcnn_s_mse_banda11/TOTAL/stats_maps.png` | recortados 90 px de cabecera |
+
+`apendice_candidatas/` tiene copias de todas las que se valoraron, con un README
+que explica qué sostiene cada una y por qué entró o no. Son copias: los
+originales no se han movido y la carpeta se puede borrar sin consecuencias.
 
 ## Al regenerar cualquiera
 

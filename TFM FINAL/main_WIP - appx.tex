@@ -143,26 +143,14 @@ Email: 100569281@alumnos.uc3m.es}
 \pagestyle{tfmplain}
 
 \begin{abstract}
-Monolithic scintillator crystals read by silicon photomultiplier (SiPM) arrays
-are cheaper to produce than pixelated ones and do not segment the information
-that reaches the reconstruction stage, but their readout shares the light of
-every event across many channels. A single faulty channel therefore degrades
-the flood map of the whole crystal, and current practice is to detect it and
-discard either the affected events or the module. We propose recovering the
-lost signal instead. \textsc{HexGNN} is a graph neural network of \num{38305}
-parameters built on the geometry of the array, with one node per sensor and one
-edge between adjacent sensors, that estimates the charge of a suppressed
-channel from the sixty that remain. It needs no faulty hardware to train: we
-suppress a channel of a healthy module and take its true value as the label. We
-used flood acquisitions with a $^{22}$Na source on 159 physical modules of a
-hexagonal PET detector and evaluated on modules the network had never seen.
-Imputation removes $56.6 \pm 2.3$\,\% of the positioning error introduced by
-the fault, leaving a residual displacement of 0.28\,mm at P90, and preserves
-the energy spectrum to $84.7 \pm 0.9$\,\%. Training with one to four
-simultaneous failures extends the result to several dead channels at no cost in
-the single-channel case. The correction is applied before the centre of gravity
-is computed, so it returns a complete 61-channel vector that the rest of the
-processing chain consumes unchanged.
+TODO: 150--250 palabras. Problema, metodo propuesto, datos empleados y
+resultados cuantitativos principales.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Curabitur pretium tincidunt lacus. Nulla gravida orci a odio, sed fermentum lorem interdum. Phasellus convallis, sapien nec facilisis tincidunt, justo lectus malesuada erat, vitae consectetur neque arcu vel lorem. Integer consequat, augue a interdum consequat, erat sapien volutpat justo, at tincidunt libero mauris nec nisl. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Donec vitae augue sed justo interdum tincidunt.
+
+Mauris euismod, lectus vitae tincidunt posuere, justo sem malesuada neque, eget feugiat sapien nisl a erat. Aenean interdum, purus vel malesuada consequat, magna sapien tincidunt augue, non consequat libero neque at justo. Suspendisse potenti. Proin vitae lorem at ipsum interdum tincidunt. Aliquam erat volutpat. Nam sed augue vel risus commodo interdum, sed tincidunt justo consequat. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Integer vel lorem nec sapien facilisis aliquam. Donec vulputate, magna at consequat suscipit, justo neque malesuada nisl, vitae tincidunt erat turpis vel ipsum. Vivamus feugiat lorem sed arcu malesuada, quis consequat purus tincidunt. Sed euismod, neque vitae interdum consequat, justo sapien fermentum mauris, vel tincidunt nulla nisl non erat.
+
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -549,7 +537,8 @@ carried signal and half suppress a channel already at zero.
 \label{sec:regimes}
 
 A single dead channel is the simplest fault, but not the only one. When we
-inspected the flood maps of the 62 defective modules, we found three recurring
+inspected the flood maps of the 62 defective modules and annotated 18 of them
+channel by channel (Appendix~\ref{app:bad}), we found three recurring
 patterns. What matters is not so much how many sensors fail as how they are
 arranged: one whose neighbours are all healthy can be reconstructed from them,
 whereas one surrounded by other dead sensors cannot.
@@ -937,7 +926,9 @@ Performance is not uniform across the detector. Fig.~\ref{fig:mapa} maps the
 recovery of each of the 61 channels and reproduces the same core-to-edge
 gradient. Central channels, whose light is shared with six neighbours, exceed
 60\,\%; channels on the perimeter, with three or four neighbours and less
-collected light, fall below 45\,\%.
+collected light, fall below 45\,\%. Appendix~\ref{app:sensor} separates that
+gradient from the statistics available for each sensor, which vary by a factor
+of four across the array.
 
 \begin{figure*}[t]
 \centering
@@ -966,7 +957,7 @@ after imputing it.}
 \label{sec:res-prior}
 
 Table~\ref{tab:architectures} compares the architectures under a common
-evaluation. The two models without a geometric prior reach 51.39\,\% and
+evaluation; their configurations are given in Appendix~\ref{app:arch}. The two models without a geometric prior reach 51.39\,\% and
 48.92\,\% recovery at P90. The smallest graph model reaches
 58.0\,\% with an order of magnitude fewer parameters than either of them.
 
@@ -996,8 +987,8 @@ Neither capacity nor a more elaborate aggregation moves that figure. Widening
 point in either direction. The two architectures with a wider receptive field
 perform three points \emph{worse}: Graphormer reaches 55.17\,\% with 4.3\,M
 parameters and the graph U-Net 55.22\,\% with 332\,k, against 58.02\,\% for the
-38\,k reference. PNA, which combines several aggregation statistics scaled by
-node degree, matches the reference at 58.45\,\% rather than exceeding it, using
+38\,k reference. PNA, which combines four aggregation statistics over each
+neighbourhood, matches the reference at 58.45\,\% rather than exceeding it, using
 four times as many parameters. The problem behaves as a local
 one, and the isotropic mean over immediate neighbours is enough to solve it.
 
@@ -1053,7 +1044,7 @@ Data partition                & 5 & $56.56 \pm 2.32$ & $50.60 \pm 2.04$ \\
 % De nuevo creo que no queda claro el modelo de referencia que se esta usando. [Checked]
 Repeating the experiment with five different partitions of the same 159
 modules, however, gives $56.56 \pm 2.32$\,\%, a standard deviation six times
-larger. Evaluating the model on individual unseen modules explains why:
+larger. The five partitions are listed in Appendix~\ref{app:splits}. Evaluating the model on individual unseen modules explains why:
 recovery ranges from
 29.2\,\% to 63.0\,\% depending on which detector it is measured on, with a
 standard deviation of 7.86 percentage points across modules. With five modules
@@ -1247,7 +1238,8 @@ reported as FWHM in Eq.~\ref{eq:fwhm}.}
 %v2.1Se va a experimentar con multidead para añadir estos resultados. 
 
 The energy spectrum is preserved to a comparable degree, with a global spectral
-recovery of $84.7 \pm 0.9$\,\% ($n=3$, Fig.~\ref{fig:espectro}). Here the
+recovery of $84.7 \pm 0.9$\,\% ($n=3$; the histograms behind this figure are
+in Appendix~\ref{app:spectra}). Here the
 core-to-edge gradient reappears: $87.4 \pm 1.8$\,\% in the core,
 $85.6 \pm 0.7$\,\% in the middle band and $81.2 \pm 0.3$\,\% at the edge. The
 residual shift of the photopeak stays at $0.21 \pm 0.02$ ADC units across the
@@ -1302,18 +1294,25 @@ $k=4$, scatter & $93.3 \pm 0.4$ & 3.62 & 0.20 \\
 %v2.1 Esta grafica es compacta pero uff, igual la que enseña los espectros por zonas es más cuca y se ve el del Na22.  [Checked]
 % Cambiada por espectros_zonas, que ensena los histogramas de verdad en vez del
 % resumen agregado. A doble columna, que con quince paneles no cabe en una.
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{espectros_zonas}
-\caption{Energy spectra of the affected events for five channels (columns) and
-the three crystal zones (rows), comparing the original distribution in grey with
-the degraded one in orange and the imputed one in blue. The 511\,keV photopeak
-of $^{22}$Na is visible in the core and middle rows and flattens towards the
-edge, where the absorbing adhesive removes part of the collected light. The
-degraded curve departs from the original towards lower energies, and imputation
-brings it back; the per-panel figure is the spectral recovery.}
-\label{fig:espectro}
-\end{figure*}
+%
+% MOVIDA AL APENDICE D (app:spectra). Aqui ocupaba una pagina entera en mitad
+% del argumento y con quince paneles no se leia. En el apendice va junto a su
+% version con k=4, que es donde la comparacion dice algo.
+% Para devolverla a Resultados: descomentar este bloque y borrar el gemelo del
+% apendice, que la etiqueta fig:espectro no puede estar definida dos veces.
+%
+% \begin{figure*}[t]
+% \centering
+% \includegraphics[width=\textwidth]{espectros_zonas}
+% \caption{Energy spectra of the affected events for five channels (columns) and
+% the three crystal zones (rows), comparing the original distribution in grey with
+% the degraded one in orange and the imputed one in blue. The 511\,keV photopeak
+% of $^{22}$Na is visible in the core and middle rows and flattens towards the
+% edge, where the absorbing adhesive removes part of the collected light. The
+% degraded curve departs from the original towards lower energies, and imputation
+% brings it back; the per-panel figure is the spectral recovery.}
+% \label{fig:espectro}
+% \end{figure*}
 
 \subsection{Variants That Did Not Improve the Model}
 \label{sec:res-negative}
@@ -1654,25 +1653,246 @@ On modules the network had never seen, imputation removes $56.6 \pm 2.3$\,\% of
 the positioning error introduced by the fault, leaving a residual displacement
 of 0.28\,mm at P90, and it preserves the energy spectrum to
 $84.7 \pm 0.9$\,\%. Training with one to four simultaneous failures, following
-the patterns we found in the flood maps of the modules that arrived with a
-defect, extends that behaviour to several dead channels at no cost in the
+the patterns we observed in the flood maps of the 62 defective modules of the
+batch, extends that behaviour to several dead channels at no cost in the
 single-channel case.
 
-Industrial practice discards the faulty channel, so there was no figure to
-improve on: the one reported here is a first reference for a problem nobody had
-addressed upstream of the centroid. Three lines follow from it --- a calibrated
-acquisition, which would separate what belongs to the method from what belongs
-to the hardware; the modules that arrived with a defect, which offer a
-validation against expert criterion that no injected fault can give; and a full
-reconstruction of imputed events, which would take the correction from the
-detector to the system. What the work establishes is that the information
-needed to repair a dead channel is there in its neighbours, and that a small
-network with the geometry of the detector built into it is enough to reach it.
+What this work leaves is a working baseline, not a closed problem. The ceiling
+we measured is set by the data rather than by the network: real acquisitions,
+uncalibrated in energy, and a fault that has to be injected because a genuine
+one leaves no reference against which to measure the error. Each of those
+points to a line of work. A calibrated or controlled acquisition would separate
+what belongs to the method from what belongs to the hardware; the annotated
+defective modules offer a validation against expert criterion that no synthetic
+fault can provide; and propagating imputed events through a full reconstruction
+is the step that would turn a per-detector correction into a system-level
+result. What can be stated already is that the information needed to repair a
+dead channel is present in its neighbours, and that a small network with the
+geometry of the detector built into it is enough to extract it.
 
+
+% ---------------------------------------------------------------------
+% APENDICES
+% ---------------------------------------------------------------------
+% \appendices numera A, B, C... y va SIEMPRE antes de la bibliografia.
+% Criterio de que entra aqui: evidencia primaria y reproducibilidad, y solo
+% si el cuerpo del texto lo cita. Lo que no se cita, no va.
+\appendices
+
+\section{Architecture Configurations}
+\label{app:arch}
+
+Table~\ref{tab:architectures} compares eight models by parameter count and
+recovery, but those two numbers do not determine an architecture. Table
+\ref{tab:app-arch} gives the configuration behind each row. All eight share the
+optimiser, learning rate, schedule, batch size and sample budget of
+Table~\ref{tab:hyperparams}, and all receive the same input: two features per
+node, the normalised charge and the binary mask that marks the suppressed
+channels. They differ only in how they propagate information between sensors.
+
+\begin{table}[t]
+\centering
+\caption{Configuration of the models compared in
+Table~\ref{tab:architectures}. Width is the hidden dimension; all models use
+GELU activations and dropout 0.1.}
+\label{tab:app-arch}
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Model} & \textbf{Configuration} & \textbf{Params} \\
+\midrule
+DeepMLP           & Widths 512--512--256--128, batch norm & \num{500541} \\
+ResidualMLP       & Width 256, 4 residual blocks          & \num{345981} \\
+Graphormer        & Width 256, 8 layers, 8 heads          & \num{4263881} \\
+Graph U-Net       & Width 128, global bottleneck          & \num{331649} \\
+PNA               & Width 64, 4 blocks, 4 aggregators     & \num{165761} \\
+\textsc{HexGNN-s} & Width 48, 4 blocks                    & \num{38305} \\
+\textsc{HexGNN-m} & Width 96, 6 blocks                    & \num{225217} \\
+\textsc{HexGNN-l} & Width 128, 6 blocks                   & \num{398593} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two entries need a comment. The Graphormer attends over all 61 nodes at every
+layer, and the inter-sensor distance matrix enters the attention as a bias, so
+the geometry reaches it as a soft prior rather than as a fixed adjacency. The
+PNA variant reported here aggregates the mean, maximum, minimum and standard
+deviation of each neighbourhood, without the degree scalers of the original
+formulation. We also trained the scaled version: it needs 2.6 times more
+parameters and recovers 56.91\,\% against the 57.13\,\% of the unscaled one on
+the common evaluation, so the scalers do not pay for themselves on a graph
+whose degree varies only between three and six.
+
+\section{Data Partitions}
+\label{app:splits}
+
+The five partitions of Table~\ref{tab:reference} are not stored as lists of
+files. They are generated by a single deterministic function, shared by the
+training script and every evaluation, which shuffles the 159 healthy modules
+with a fixed seed and takes the first five as test and the next five as
+validation. Reporting the seed therefore defines the partition exactly. Table
+\ref{tab:app-splits} lists the modules each seed produces, so that a specific
+result can be traced to specific detectors.
+
+\begin{table}[t]
+\centering
+\caption{Held-out modules of the five partitions. The remaining 149 modules
+form the training set in each case.}
+\label{tab:app-splits}
+\small
+\begin{tabular}{@{}clll@{}}
+\toprule
+\textbf{Part.} & \textbf{Seed} & \textbf{Validation} & \textbf{Test} \\
+\midrule
+A & 42 & 013, 015, 080, & 057, 116, 126, \\
+  &    & 142, 182       & 202, 214 \\
+B & 43 & 083, 105, 127, & 037, 045, 101, \\
+  &    & 152, 188       & 122, 172 \\
+C & 44 & 067, 147, 155, & 043, 138, 140, \\
+  &    & 180, 199       & 142, 150 \\
+D & 45 & 067, 150, 177, & 012, 095, 136, \\
+  &    & 202, 211       & 142, 160 \\
+E & 46 & 081, 090, 126, & 077, 085, 129, \\
+  &    & 167, 214       & 141, 215 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The partitions are drawn independently, so a module can appear in the held-out
+set of more than one of them: \texttt{datas142} is a test module in C and D and
+a validation module in A. This is deliberate, since the quantity being
+estimated is the spread over partitions and not a partition of the batch into
+disjoint folds, but it means the five values of Table~\ref{tab:reference} are
+not fully independent and the $\pm 2.32$ band should be read as a lower bound.
+
+One further caveat belongs here. Partition A was trained under the protocol
+described in Section~\ref{sec:training}, one module per epoch over 149 epochs
+of \num{107000} events. Partitions B to E predate it and were trained with 40
+epochs of \num{400000} events drawn from 40 modules. The sample budget is
+almost identical, \num{15943000} against \num{16000000}, a difference of
+0.36\,\%, but the module coverage is not: B to E saw 40 of the 149 training
+detectors and A saw all of them. Repeating the cross-validation under the
+current protocol is pending. We do not expect it to narrow the band, which is
+dominated by having five modules in the test set rather than by the training
+schedule, but it would make the five figures homogeneous.
+
+\section{Annotated Defective Modules}
+\label{app:bad}
+
+The batch contains 62 modules that the acquisition software flagged as
+defective. We inspected their flood maps and annotated 18 of them channel by
+channel, which is the evidence behind the failure regimes of
+Section~\ref{sec:regimes}. Table~\ref{tab:app-bad} lists the annotation. Of the
+18, fourteen have at least one channel we could identify as dead and four show
+a distorted flood map with no individual channel we were willing to name, which
+is itself a result: a defective flood map does not always reduce to a dead
+sensor.
+
+\begin{table}[t]
+\centering
+\caption{Manually annotated defective modules. Channels are given in the
+detector's own \textit{Ich} numbering.}
+\label{tab:app-bad}
+\small
+\begin{tabular}{@{}lcl@{}}
+\toprule
+\textbf{Module} & \textbf{Dead} & \textbf{Channels (Ich)} \\
+\midrule
+\texttt{datas008} & 1 & 7 \\
+\texttt{datas010} & 1 & 19 \\
+\texttt{datas024} & 1 & 27 \\
+\texttt{datas034} & 1 & 4 \\
+\texttt{datas005} & 1 & 36 \\
+\texttt{datas041} & 1 & 62 \\
+\texttt{datas050} & 1 & 34 \\
+\texttt{datas001} & 2 & 14, 49 \\
+\texttt{datas028} & 2 & 13, 52 \\
+\texttt{datas032} & 2 & 19, 61 \\
+\texttt{datas042} & 2 & 0, 25 \\
+\texttt{datas046} & 2 & 7, 30 \\
+\texttt{datas029} & 5 & 0, 32, 44, 61, 62 \\
+\texttt{datas016} & 7 & 36, 41, 42, 43, 51, 59, 61 \\
+\midrule
+\multicolumn{3}{@{}l}{\texttt{datas009}, \texttt{datas017}, \texttt{datas025},
+\texttt{datas051}: no channel identified} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This distribution is what sets the range of $k$ used throughout the paper.
+Twelve of the fourteen annotated modules have one or two dead channels, and
+none has three or four; training over $k=1\dots4$ therefore covers every case
+we observed with margin, while the two modules with five and seven dead
+channels fall outside it. Whether the method still holds there is open, and
+\texttt{datas016}, with seven dead channels out of 61, is the case we would
+test first. The 29 dead channels are spread over 24 distinct sensors, with only
+Ich 0, 7, 19, 61 and 62 failing in more than one module, so the annotation does
+not point to a systematically fragile position in the array.
+
+\section{Complete Energy Spectra}
+\label{app:spectra}
+
+Section~\ref{sec:res-fidelity} reports spectral recovery as a single figure per
+condition. Figs.~\ref{fig:espectro} and \ref{fig:espectro-k4} give the
+histograms those figures summarise, for one and for four suppressed channels.
+The comparison between the two is the visual form of the result in
+Table~\ref{tab:espectro-k}: quadrupling the damage does not visibly separate
+the imputed curve from the original one.
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=\textwidth]{espectros_zonas}
+\caption{Energy spectra of the affected events for five channels (columns) and
+the three crystal zones (rows), with \textbf{one} suppressed channel, comparing
+the original distribution in grey with the degraded one in orange and the
+imputed one in blue. The 511\,keV photopeak of $^{22}$Na is visible in the core
+and middle rows and flattens towards the edge, where the absorbing adhesive
+removes part of the collected light. The degraded curve departs from the
+original towards lower energies, and imputation brings it back; the per-panel
+figure is the spectral recovery.}
+\label{fig:espectro}
+\end{figure*}
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=\textwidth]{espectros_zonas_k4}
+\caption{The same measurement with \textbf{four} simultaneously suppressed
+channels in the \emph{near} geometry, on the same axes as
+Fig.~\ref{fig:espectro}. The orange curve is displaced further, as expected,
+but the blue one still tracks the grey: recovery rises from
+$83.1 \pm 0.2$\,\% to $88.7 \pm 0.3$\,\% because the damage grows faster than
+what remains of it after imputation.}
+\label{fig:espectro-k4}
+\end{figure*}
+
+\section{Per-Sensor Statistics}
+\label{app:sensor}
+
+Recovery is reported per channel in Fig.~\ref{fig:mapa} and degrades from the
+core towards the edge. Fig.~\ref{fig:app-stats} separates two quantities that
+the recovery map combines. The left panel gives the number of modified events
+available for each sensor, which ranges from \num{459000} at a corner to
+\num{1892000} at the centre; the right panel gives the imputation error in ADC
+units rather than as a fraction of the damage.
+
+Read together they answer a question the recovery map leaves open. The edge
+sensors are not worse because they were measured less often: the ratio in
+statistics is fourfold and the ratio in MAE is under twofold, and the pattern
+of the right panel follows the geometry of the array rather than that of the
+left. What the edge lacks is neighbours, not events.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{stats_por_sensor}
+\caption{Left, number of modified events per sensor over the test partition.
+Right, mean absolute imputation error per sensor in ADC units. Both over the
+61 active channels of the reference model.}
+\label{fig:app-stats}
+\end{figure*}
 
 % ---------------------------------------------------------------------
 % REFERENCIAS
 % ---------------------------------------------------------------------
+\clearpage
 \bibliographystyle{IEEEtran}
 \bibliography{referencias}
 
