@@ -65,6 +65,12 @@
 
 \begin{document}
 
+% Configura IEEEtran.bst. Sin esto, dos entradas seguidas del mismo autor
+% salen con "---" en lugar del nombre repetido (pasa con Loshchilov y Hutter,
+% que firman AdamW y SGDR). Es estilo IEEE valido, pero se lee fatal.
+% No es una cita: no imprime nada ni aparece en la bibliografia.
+\bstctlcite{BSTcontrol}
+
 % =====================================================================
 % 1) PORTADA OFICIAL UC3M
 % =====================================================================
@@ -143,26 +149,32 @@ Email: 100569281@alumnos.uc3m.es}
 \pagestyle{tfmplain}
 
 \begin{abstract}
-Monolithic scintillator crystals read by silicon photomultiplier (SiPM) arrays
-are cheaper to produce than pixelated ones and do not segment the information
-that reaches the reconstruction stage, but their readout shares the light of
-every event across many channels. A single faulty channel therefore degrades
-the flood map of the whole crystal, and current practice is to detect it and
-discard either the affected events or the module. We propose recovering the
+The spatial resolution of Positron Emission Tomography (PET) limits its use in
+the small structures that dedicated and organ-specific systems target, and
+monolithic scintillator crystals have gained ground there because they preserve
+the continuous distribution of the scintillation light instead of segmenting
+it, which allows the interaction position to be estimated between sensors
+rather than at a fixed pitch. That advantage carries a dependency: the light of
+every event is shared across many channels of the silicon photomultiplier
+(SiPM) array, so a single faulty channel distorts the reconstructed position of
+events across the whole crystal, and current practice is to detect the fault
+and discard either the affected events or the module. We propose recovering the
 lost signal instead. \textsc{HexGNN} is a graph neural network of \num{38305}
-parameters built on the geometry of the array, with one node per sensor and one
-edge between adjacent sensors, that estimates the charge of a suppressed
-channel from the sixty that remain. It needs no faulty hardware to train: we
-suppress a channel of a healthy module and take its true value as the label. We
-used flood acquisitions with a $^{22}$Na source on 159 physical modules of a
-hexagonal PET detector and evaluated on modules the network had never seen.
-Imputation removes $56.6 \pm 2.3$\,\% of the positioning error introduced by
-the fault, leaving a residual displacement of 0.28\,mm at P90, and preserves
-the energy spectrum to $84.7 \pm 0.9$\,\%. Training with one to four
-simultaneous failures extends the result to several dead channels at no cost in
-the single-channel case. The correction is applied before the centre of gravity
-is computed, so it returns a complete 61-channel vector that the rest of the
-processing chain consumes unchanged.
+parameters that takes the hexagonal array as its structure, with one node per
+sensor and one edge between adjacent sensors, and estimates the charge of a
+suppressed channel from the sixty that remain, using the geometry of the
+detector as a prior instead of learning it from the data. It needs no faulty
+hardware to train: we suppress a channel of a healthy module and take its
+recorded value as the label. We used flood acquisitions with a $^{22}$Na source
+on 159 physical modules of a hexagonal PET detector, measured rather than
+simulated, and evaluated on modules the network had never seen. Imputation
+removes $56.6 \pm 2.3$\,\% of the positioning error introduced by the fault,
+leaving a residual displacement of 0.28\,mm at P90, and preserves the energy
+spectrum to $84.7 \pm 0.9$\,\%. Training with one to four simultaneous failures
+extends the result to several dead channels at no cost in the single-channel
+case. The correction is applied before the centre of gravity is computed, so it
+returns a complete 61-channel vector that the rest of the processing chain
+consumes unchanged.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -1658,9 +1670,10 @@ the patterns we found in the flood maps of the modules that arrived with a
 defect, extends that behaviour to several dead channels at no cost in the
 single-channel case.
 
-Industrial practice discards the faulty channel, so there was no figure to
-improve on: the one reported here is a first reference for a problem nobody had
-addressed upstream of the centroid. Three lines follow from it --- a calibrated
+There is no established figure for this task to compare against, which is not
+surprising: monolithic detectors remain uncommon outside research settings, and
+where a dead channel is handled at all it is masked rather than recovered. We
+offer ours as a starting point. Three lines follow from it --- a calibrated
 acquisition, which would separate what belongs to the method from what belongs
 to the hardware; the modules that arrived with a defect, which offer a
 validation against expert criterion that no injected fault can give; and a full

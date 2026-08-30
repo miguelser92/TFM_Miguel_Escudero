@@ -1,4 +1,15 @@
 % =====================================================================
+% Entrada de control de IEEEtran.bst. NO es una referencia: no se imprime
+% y no sale en la bibliografia. Se invoca con stctlcite{BSTcontrol} justo
+% despues de egin{document}.
+% CTLdash_repeated_names = "no" evita que dos entradas seguidas del mismo
+% autor sustituyan el nombre por "---".
+% =====================================================================
+@IEEEtranBSTCTL{BSTcontrol,
+  CTLdash_repeated_names = "no"
+}
+
+% =====================================================================
 %  referencias.bib  -  TFM Miguel Escudero Rodriguez
 %  "Deep Learning for Photomultiplier Crystal Detection Signals"
 %  UC3M - MSc Machine Learning for Health - 2025/2026
