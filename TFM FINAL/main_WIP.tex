@@ -149,12 +149,12 @@ Email: 100569281@alumnos.uc3m.es}
 \pagestyle{tfmplain}
 
 \begin{abstract}
-The spatial resolution of Positron Emission Tomography (PET) limits its use in
-the small structures that dedicated and organ-specific systems target, and
-monolithic scintillator crystals have gained ground there because they preserve
-the continuous distribution of the scintillation light instead of segmenting
-it, which allows the interaction position to be estimated between sensors
-rather than at a fixed pitch. That advantage carries a dependency: the light of
+Spatial resolution is a general limitation of Positron Emission Tomography
+(PET), and monolithic scintillator crystals are one of the routes towards
+improving it: they preserve the continuous distribution of the scintillation
+light instead of segmenting it, so the interaction position can be estimated
+between sensors rather than at a fixed pitch. That advantage carries a
+dependency: the light of
 every event is shared across many channels of the silicon photomultiplier
 (SiPM) array, so a single faulty channel distorts the reconstructed position of
 events across the whole crystal, and current practice is to detect the fault
@@ -225,7 +225,7 @@ disorders.
 \begin{figure}[!b]
 \centering
 \includegraphics[width=\linewidth]{escaner}
-\caption{\textbf{TEMPORAL}Three-dimensional model of the quasi-spherical, hexagonal-based
+\caption{Three-dimensional model of the quasi-spherical, hexagonal-based
 PET scanner. Reproduced from \cite{perez-benito_sipm-based_2019}.}
 \label{fig:escaner}
 \end{figure}
@@ -1670,15 +1670,12 @@ the patterns we found in the flood maps of the modules that arrived with a
 defect, extends that behaviour to several dead channels at no cost in the
 single-channel case.
 
-There is no established figure for this task to compare against, which is not
-surprising: monolithic detectors remain uncommon outside research settings, and
-where a dead channel is handled at all it is masked rather than recovered. We
-offer ours as a starting point. Three lines follow from it --- a calibrated
-acquisition, which would separate what belongs to the method from what belongs
-to the hardware; the modules that arrived with a defect, which offer a
-validation against expert criterion that no injected fault can give; and a full
-reconstruction of imputed events, which would take the correction from the
-detector to the system. What the work establishes is that the information
+Three lines follow most directly from this work. A calibrated acquisition would
+separate what belongs to the method from what belongs to the hardware. The
+modules that arrived with a defect offer a validation against expert criterion
+that no injected fault can give. And propagating imputed events through a full
+reconstruction would take the correction from the detector to the system. What
+the work establishes is that the information
 needed to repair a dead channel is there in its neighbours, and that a small
 network with the geometry of the detector built into it is enough to reach it.
 
