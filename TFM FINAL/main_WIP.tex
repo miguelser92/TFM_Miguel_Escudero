@@ -180,7 +180,6 @@ consumes unchanged.
 \begin{IEEEkeywords}
 Positron emission tomography, silicon photomultiplier, Monolithic Crystal Scintillator, missing data
 imputation, deep learning, graph neural networks, silicon photomultiplier failure, channel failure.
-.
 \end{IEEEkeywords}
 
 
@@ -1346,7 +1345,9 @@ file and mixing them shifts the figure without meaning anything.
 
 Making the aggregation directional, with one weight per neighbour direction
 instead of a single shared matrix, loses 0.80 points, 2.2 standard deviations in
-the wrong direction. Attaching metric features to the edges loses 0.13 points
+the wrong direction, and the loss is concentrated at the perimeter: 1.7 points
+on the 24 sensors with fewer than six neighbours against 0.2 on the 37 interior
+ones. Attaching metric features to the edges loses 0.13 points
 when the feature is the distance between sensors and 0.62 when it is the
 displacement vector; both fall inside the band, but their replicas differ by
 more than the $\pm 0.37$ of Table~\ref{tab:reference}, so the fair reading is
@@ -1467,6 +1468,24 @@ local phenomenon: the charge collected by a sensor is determined by the
 interactions that occur near it, and the redundancy that makes imputation
 possible lives in that neighbourhood.
 
+Describing that same geometry more richly does not help, which sharpens the
+point. The distance between neighbours is constant to within 0.3\,\% across the
+array, so attaching it to the edges gives the filter nothing to modulate, and
+the displacement vector fares no better. Giving each direction its own weight is
+worse than neutral, and the loss falls where the neighbourhood is incomplete:
+1.7 points on the 24 perimeter sensors against 0.2 on the 37 interior ones.
+Absent directions enter the aggregation as zeros, so the sensors that already
+have the least information are the ones asked to read an incomplete
+neighbourhood, whereas one isotropic kernel serves a sensor with three
+neighbours and one with six alike.
+
+The two extremes are worth placing side by side. Removing the prior altogether,
+by letting every node attend to every other, costs between one and three points.
+Replacing it with an equally connected but physically meaningless graph costs
+close to thirty. The structure is therefore not acting as a generic
+regulariser --- any graph would then do --- and what the model uses is this
+particular adjacency, with nothing more elaborate than adjacency.
+
 %v2.2 Esta seccion no me gusta mucho creo que es mejor comentar que el problema real es complejo
 % y faltan calibraciones, datos reales y poder parear un GT que nos limitan los resultados.
 %Esta muy escueto y creo que es lo mas importante de comentar no?  Todo esto me pega mas en limitaciones
@@ -1479,8 +1498,9 @@ possible lives in that neighbourhood.
 
 If capacity is not the constraint, the natural question is what is. Our
 measurements point away from the model and towards the data. Nine architectural
-variants, a doubled training budget and a larger parameter count all leave
-recovery within a point of the reference. What does move it, and by far, is
+variants, four richer descriptions of the geometry, a doubled training budget
+and a larger parameter count all leave recovery within about a point of the
+reference. What does move it, and by far, is
 which detector the model is measured on: recovery ranges from 29 to 63\,\%
 across individual modules, with a standard deviation of 7.9 points, against 0.3
 between training runs on the same partition.
@@ -1509,7 +1529,11 @@ Read together, the two points set the terms in which any figure in this work
 should be taken. Comparisons between models are precise, because they are
 paired over the same modules, events and masks. The absolute value on a new
 detector carries the variability of the hardware, and the way to reduce it is a
-per-module calibration rather than a better network.
+per-module calibration rather than a better network. That recommendation
+concerns the acquisition and not the input: equalising each channel by its mean
+response before imputation loses two points, most likely because the systematic
+differences between channels also carry information about where the light
+landed.
 
 %Efectivamente creo que es muy largo. [Checked: de cuatro parrafos a dos]
 \subsection{Behaviour Under Multiple Failures}
