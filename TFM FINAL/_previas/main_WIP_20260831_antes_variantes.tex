@@ -637,7 +637,7 @@ If the six neighbours of a sensor contribute unequally --- and they might, since
 the light reaching one of them depends on the direction of the interaction ---
 then averaging them discards useful information. 
 We tested this in two forms: a directional hexagonal convolution with one weight per neighbour direction,
-and principal neighbourhood aggregation (PNA), which combines several statistics and
+and Principal neighbourhood aggregation (PNA) wich combines several statistics and
 scales them by node degree, retaining information that any single one throws
 away \cite{corso2020pna}; degree varies here between three and six, so the
 scaling is not vacuous.
@@ -650,9 +650,10 @@ field would help. We tested this in two forms: a graph U-Net, which pools the
 graph into a coarser representation before expanding it back
 \cite{gao2019graphunet}, and a graph transformer (Graphormer) in which every
 node attends to every other one regardless of adjacency
-\cite{ying2021graphormer}. We also tested metric edge features, per-channel
-equalisation, heteroscedastic prediction of mean and variance, and averaging
-ensembles \cite{lakshminarayanan2017ensembles}.
+\cite{ying2021graphormer}. We also tested metric edge features, anisotropic
+hexagonal convolution with one weight per direction, per-channel equalisation,
+heteroscedastic prediction of mean and variance, and averaging ensembles
+\cite{lakshminarayanan2017ensembles}.
 
 \subsection{Training}
 \label{sec:training}
@@ -1008,10 +1009,8 @@ perform three points \emph{worse}: Graphormer reaches 55.17\,\% with 4.3\,M
 parameters and the graph U-Net 55.22\,\% with 332\,k, against 58.02\,\% for the
 38\,k reference. PNA, which combines several aggregation statistics scaled by
 node degree, matches the reference at 58.45\,\% rather than exceeding it, using
-four times as many parameters. Making the aggregation directional does not help
-either, as reported in Section~\ref{sec:res-negative}. The problem behaves as a
-local one, and the isotropic mean over immediate neighbours is enough to solve
-it.
+four times as many parameters. The problem behaves as a local
+one, and the isotropic mean over immediate neighbours is enough to solve it.
 
 To test whether the advantage comes from the detector geometry rather than from
 message passing in general, we retrained the reference with the adjacency
@@ -1333,35 +1332,10 @@ brings it back; the per-panel figure is the spectral recovery.}
 %v2.1 De nuevo, ecuaciones, parametros, etc... [Checked]
 %v2.1 Que ensembles se hicieron,etc... [Checked]
 %v2.3 He justificado que realemente los ensembles no van casi igual o un poco mejor por el tamaño y coste computacional, por eso hay que cambiar esa frase. 
-Several of the alternatives outlined in Sections~\ref{sec:arch} and
-\ref{sec:training} failed to improve on the reference for equal computational
-cost. We report them with the form each one took, because in some of them the
-reason for the failure lies in that form rather than in the idea behind it.
-
-\subsubsection{Richer aggregation and richer inputs}
-Four variants give the model information that the reference does not use, and
-none of them improves on it. Each is compared against the reference of its own
-evaluation campaign, since the two campaigns differ in the number of events per
-file and mixing them shifts the figure without meaning anything.
-
-Making the aggregation directional, with one weight per neighbour direction
-instead of a single shared matrix, loses 0.80 points, 2.2 standard deviations in
-the wrong direction. Attaching metric features to the edges loses 0.13 points
-when the feature is the distance between sensors and 0.62 when it is the
-displacement vector; both fall inside the band, but their replicas differ by
-more than the $\pm 0.37$ of Table~\ref{tab:reference}, so the fair reading is
-that they do not help rather than that they match. Replacing the neighbourhood
-aggregation by attention among all 61 nodes loses 1.24 points, and it does so in
-both campaigns with independently trained replicas, which is what makes it a
-result and not noise; it points the same way as the Graphormer of
-Table~\ref{tab:architectures}.
-
-Equalising each channel by its mean response before imputation is the only one
-that fails outright, at 2.19 points and almost six standard deviations. The
-likely reason is that equalising the input is not the same as calibrating the
-acquisition: the systematic differences between channels carry information about
-where the light landed, and removing them costs the model more than the
-uniformity gains it.
+Four of the alternatives outlined in Sections~\ref{sec:arch} and
+\ref{sec:training} failed to improve on the reference for equal computational cost. We report them with the
+form each one took, because in three of the four the reason for the failure lies
+in that form rather than in the idea behind it.
 
 \subsubsection{Physics-informed terms}
 Both variants add a penalty to the loss of Eq.~\ref{eq:loss},
