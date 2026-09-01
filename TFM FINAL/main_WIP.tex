@@ -1673,46 +1673,13 @@ acquisition than to the robustness of the model. Separating the two would
 require data in which the per-channel response is known or controlled, which
 real flood acquisitions do not provide.
 
-%v2.2 comentar lo que te digo arriba aqui mas extenso, no ser tremendista si no decir que
-% hemos sentado unas bases en este campo y que estas son las lineas futuras. Aunque ahora
-% que lo pienso esto queda mejor en la conclusion.
-% [Checked] Ampliada y en tono de lineas abiertas, no de deficiencias. El "hemos
-% sentado unas bases" NO se dice aqui a proposito: si va tambien en Conclusions
-% suena a autobombo repetido. Lo dejo para que lo digas tu una sola vez alli.
-\subsection{Future Work}
-
-Four directions follow from the above, and the first two address the two
-limits identified in Section~\ref{sec:discussion} rather than any shortcoming of
-the network.
-
-A calibrated acquisition would separate what belongs to the method from what
-belongs to the hardware. With per-channel gains known, the charge of every
-module would live on a common scale, the spectral metric could be reported in
-keV instead of as a conservation ratio, and the spread between detectors could
-be attributed rather than merely measured. A complementary route is a
-controlled simulation of this same geometry, where the response of each sensor
-is set rather than inferred: it would make the worst-channel behaviour
-analysable, and it would allow the synthetic fault to be validated against a
-known reference.
-
-The second is the 62 modules with genuine defects, of which 18 are annotated so
-far. They cannot give a quantitative error, for the reason given above, but
-they can answer a question the synthetic experiments cannot: whether an
-imputation trained on injected faults produces flood maps that an expert
-accepts as repaired.
-
-The third is partial degradation. Extending the training masks to channels that
-keep part of their response, rather than none of it, would cover the failure
-mode that the current model does not see and that the annotation campaign
-suggests is the more common one in practice.
-
-The fourth concerns what the imputation is for. Everything here is measured on
-single detectors, and the quantity that matters clinically is the resolution of
-the reconstructed image. Propagating imputed events through a full
-reconstruction, and quantifying what a repaired module contributes to a ring of
-them, is the step that would turn a per-detector correction into a
-system-level result.
-
+% Aqui habia una subseccion "Future Work" que repetia las Conclusiones: las
+% mismas tres lineas y una frase identica palabra por palabra ("A calibrated
+% acquisition would separate what belongs to the method from what belongs to
+% the hardware"). Lo demas que decia ya esta repartido donde toca: la
+% calibracion por modulo la recomienda 4.3, la degradacion parcial y los datos
+% controlados estan en Limitations, y las lineas futuras las cierra
+% Conclusions, que es donde dijiste que quedaban mejor.
 
 % ---------------------------------------------------------------------
 \section{Conclusions}
