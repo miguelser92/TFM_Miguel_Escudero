@@ -102,7 +102,10 @@
 
   \begin{Large}
     David Izquierdo-Garc\'ia\\
-    Legan\'es, September 2026\\
+    Lidia Jim\'enez Algarra\\
+    Victor S\'anchez Tembleque Verbo\\
+    Universidad Carlos III de Madrid, Legan\'es, Spain\\
+    02/09/2026\\
   \end{Large}
 
 \end{center}
@@ -151,9 +154,9 @@ Email: 100569281@alumnos.uc3m.es}
 \begin{abstract}
 Spatial resolution is a general limitation of Positron Emission Tomography
 (PET), and monolithic scintillator crystals are one of the routes towards
-improving it: they preserve the continuous distribution of the scintillation
-light instead of segmenting it, so the interaction position can be estimated
-between sensors rather than at a fixed pitch. That advantage carries a
+improving it: the light of an interaction spreads over many photosensors
+instead of being confined to a single segmented element, so the position is
+estimated from the recorded distribution. That advantage carries a
 dependency: the light of
 every event is shared across many channels of the silicon photomultiplier
 (SiPM) array, so a single faulty channel distorts the reconstructed position of
@@ -166,8 +169,8 @@ suppressed channel from the rest, using the geometry of the
 detector as a prior instead of learning it from the data. It needs no faulty
 hardware to train: we suppress a channel of a healthy module and take its
 recorded value as the label. We used flood acquisitions with a $^{22}$Na source
-on 159 physical modules of a hexagonal PET detector, measured rather than
-simulated, and evaluated on modules the network had never seen. Imputation
+on 159 physical modules of a hexagonal, laser-engraved PET detector, measured
+rather than simulated, and evaluated on modules the network had never seen. Imputation
 removes $56.6 \pm 2.3$\,\% of the positioning error introduced by the fault,
 leaving a residual displacement of 0.28\,mm at P90, and preserves the energy
 spectrum to $84.7 \pm 0.9$\,\%. Training with one to four simultaneous failures
@@ -304,7 +307,19 @@ the resolution limit from the geometry of the crystal to the quality of the
 positioning algorithm, and makes the DOI recoverable as a
 continuous variable \cite{espana_digipet_2014}. The absence of internal reflectors
 also restores the packing fraction lost in segmented designs
-\cite{sanaat2024}. This is the configuration adopted in the scanner described above, and it is the light sharing across the array that the present work exploits.
+\cite{sanaat2024}.
+
+The scanner described above adopts this configuration with one modification.
+Its crystals are processed by subsurface laser engraving (SSLE), which writes
+semi-transparent optical barriers inside the block instead of cutting it
+\cite{perez-benito_laser-microstructured_2025}. The result is semi-pixelated:
+the light of an interaction still reaches many channels and no reflector takes
+up detector volume, but the barriers concentrate the centres of gravity into a
+discrete set of positions rather than a continuum. The barriers follow two
+different patterns at two depths, so each centre of gravity belongs to the upper
+or to the lower layer and the depth of interaction survives as a discrete
+quantity. It is the light sharing that this processing preserves that the
+present work exploits.
 
 \begin{figure}[t]
 \centering
@@ -477,9 +492,16 @@ neighbours to draw on.
 
 Every measurement reported here comes from detector modules of the scanner
 described in Section~1. Each module is built around a monolithic LYSO hexagonal
-prism, 17.6\,mm on a side and 13\,mm thick, laser-etched into 364 optical
-structures that constrain how the scintillation light spreads before reaching
-the photosensor \cite{perez-benito_laser-microstructured_2025}. An array of
+prism, 17.6\,mm on a side and 13\,mm thick, processed by SSLE into 364 optical
+structures distributed over two depth layers
+\cite{perez-benito_laser-microstructured_2025}. The engraving does not cut the
+crystal: it writes semi-transparent barriers inside it, so the scintillation
+light still spreads over many channels while the barriers concentrate the
+centres of gravity into one discrete position per structure. This is what makes
+the flood map of Fig.~\ref{fig:floodmap} a lattice of spots rather than a
+continuous distribution, and it is also why the detector retains depth
+information: the two layers carry different patterns, so a centre of gravity can
+be traced to one or the other. An array of
 silicon photomultipliers is optically coupled to its posterior face
 \cite{perez-benito_sipm-based_2019}. The array carries 61 photosensors, one per
 readout channel, which tile a hexagonal lattice with a pitch of 3.75\,mm and span
@@ -1713,9 +1735,9 @@ system-level result.
 
 We have presented a deep learning method that recovers the signal lost to a
 faulty SiPM channel in a monolithic PET detector instead of discarding it.
-Monolithic scintillators are cheaper to produce than pixelated arrays and they
-do not impose a segmentation on the information that reaches the reconstruction
-stage, but they pay for it with a readout in which every sensor contributes to
+Monolithic scintillators are cheaper to produce than pixelated arrays and let
+the light of an interaction reach many sensors instead of one, but they pay for
+it with a readout in which every sensor contributes to
 every event: when one channel fails, the flood map degrades across the whole
 crystal and the module is normally set aside. Recovering that channel is
 therefore a way of keeping detectors, and the events they have already
