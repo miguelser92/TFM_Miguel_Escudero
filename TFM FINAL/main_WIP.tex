@@ -1640,20 +1640,37 @@ historically why monolithic designs were set aside, and it is exactly what a
 learned model is good at. The results reported here suggest that this is also
 where their remaining margin lies.
 
-\subsection{Limitations}
+% Limitations y Future Work van juntas a proposito: cada limite y la linea que
+% lo ataca son el mismo tema, y separarlas obligaba al lector a buscar en dos
+% sitios que hacer con cada pega. Fundirlas es ademas lo que permite recortar,
+% porque tres de los pares decian lo mismo dos veces.
+\subsection{Limitations and Future Work}
+\label{sec:disc-future}
 
-Three limitations bound what the preceding results support, beyond the two
-properties of the data discussed in Section~\ref{sec:discussion}.
+Four limitations bound what the preceding results support, beyond the two
+properties of the data discussed in Section~\ref{sec:disc-limits}. Each of them
+points to the work that would lift it.
 
 The test partition contains five modules. Given the variability between
 detectors, that places the standard error of any absolute figure at
 approximately 3.5 points, which is why we report cross-validated values rather
 than the result of a single partition.
 
+No energy calibration was applied. With the per-channel gains known, the charge
+of every module would live on a common scale, the spectral metric could be
+reported in keV instead of as a conservation ratio, and the spread between
+detectors could be attributed rather than merely measured. A complementary
+route is a controlled simulation of this same geometry, where the response of
+each sensor is set rather than inferred: it would allow the synthetic fault to
+be validated against a known reference.
+
 The simulated fault is a total suppression. Real degradation is often partial:
 a channel that keeps part of its response, or that drifts with temperature. The
-method has not been evaluated in that regime, and it is not obvious that a
-model trained on complete failures transfers to it.
+method has not been evaluated in that regime, and it is not obvious that a model
+trained on complete failures transfers to it. Extending the training masks to
+channels that keep part of their response would cover the failure mode that the
+current model does not see, and that the annotation campaign suggests is the
+more common one in practice.
 
 %v.2.2 Si que sabemos, es por la variabilidad de los datos reales, no son simulaciones,
 % hay datos que tienen menos info sobre un canal por azar, porque ese canal puede tener
@@ -1673,13 +1690,17 @@ acquisition than to the robustness of the model. Separating the two would
 require data in which the per-channel response is known or controlled, which
 real flood acquisitions do not provide.
 
-% Aqui habia una subseccion "Future Work" que repetia las Conclusiones: las
-% mismas tres lineas y una frase identica palabra por palabra ("A calibrated
-% acquisition would separate what belongs to the method from what belongs to
-% the hardware"). Lo demas que decia ya esta repartido donde toca: la
-% calibracion por modulo la recomienda 4.3, la degradacion parcial y los datos
-% controlados estan en Limitations, y las lineas futuras las cierra
-% Conclusions, que es donde dijiste que quedaban mejor.
+Two further directions do not follow from a limitation but from what the method
+is for. The first is the 62 modules with genuine defects, of which 18 are
+annotated so far. They cannot give a quantitative error, for the reason given
+above, but they can answer a question the synthetic experiments cannot: whether
+an imputation trained on injected faults produces flood maps that an expert
+accepts as repaired. The second is that everything here is measured on single
+detectors, while the quantity that matters clinically is the resolution of the
+reconstructed image. Propagating imputed events through a full reconstruction,
+and quantifying what a repaired module contributes to a ring of them, is the
+step that would turn a per-detector correction into a system-level result.
+
 
 % ---------------------------------------------------------------------
 \section{Conclusions}
