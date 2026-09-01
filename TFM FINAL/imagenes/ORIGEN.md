@@ -45,6 +45,43 @@ ejecutados.
 | `resolucion.png` | 9 | `reports/resolution_pointspread_banda11.png` | el título interno decía «narrower = better resolution», corregido a «less error introduced» |
 | `espectros_zonas.png` | 10 | `.../ESPECTRO/espectros.png` | 15 paneles, recortada la cabecera |
 
+## Módulo realmente defectuoso (candidatas)
+
+`python fig_bad_real.py --modulo <mod> --vista <mm> --tag <t>`. Imputa el canal
+anotado en `reports/bad_labels_manual.json` con el modelo `banda11` y compara los
+dos flood maps. **No mide nada**: en un fallo real no hay referencia contra la que
+calcular el error. Enseña.
+
+| Fichero | Módulo | Canal | Posición | Recoge | Corrección del centroide |
+|---|---|---|---|---|---|
+| `bad_real_d005w.png` | datas005 | Ich 36 | interior, r=6,5 mm, 6 vecinos | 30 % | 0,32 mm mediana |
+| `bad_real_d005z.png` | íd., una columna, ventana de 9 mm | | | | |
+| `bad_real_d005.png` | íd., una columna, ventana de 15 mm | | | | |
+| `bad_real_zoom.png` | datas024 | Ich 27 | borde, r=15 mm, 3 vecinos | 36 % | 1,64 mm |
+| `bad_real_d034.png` | datas034 | Ich 4 | borde, r=15 mm, 3 vecinos | 45 % | 0,89 mm |
+| `bad_real.png` | datas024, hexágono entero | | | | |
+
+**La recomendada es `bad_real_d005w`**: doble columna, hexágono completo con el
+recuadro ampliado sobre el canal, mismo formato que la figura 3 de la
+introducción. Canal interior y claramente apagado, y el efecto se ve sin que la
+figura sugiera nada que no sea cierto. `bad_real_d005z` es la misma a una
+columna si hace falta ahorrar espacio.
+
+El recuadro se coloca solo en la esquina opuesta al canal, y se satura algo más
+que la vista completa (`--zoombrillo`, mismo factor en los dos paneles) porque
+dentro de 9 mm el rango de cuentas es mucho más estrecho. Las de `datas024` y `datas034` tienen un contraste visual mucho mayor,
+pero su canal está en un vértice del cristal y la imputación desplaza eventos
+*hacia fuera* del contorno original: parece que el modelo inventa señal donde no
+había, y eso invita a una pregunta que no interesa.
+
+Dos cosas que conviene saber al describir cualquiera de ellas:
+
+- **Ningún canal anotado está a cero.** Recogen entre el 22 % y el 52 % de lo
+  normal: son degradaciones parciales, no supresiones. Lo que hace la figura es
+  el caso de uso real, dar el canal por perdido y reemplazarlo entero.
+- Varios canales anotados recogen **más** que un módulo sano (hasta 1,86×). La
+  campaña de etiquetado marcó canales *anómalos*, no sólo apagados.
+
 ## Retiradas
 
 | Fichero | Por qué |

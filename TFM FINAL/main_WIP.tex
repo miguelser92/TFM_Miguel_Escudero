@@ -242,7 +242,7 @@ emitting isotope \cite{levin1999}, and the small angular deviation from
 antiparallel emission, caused by the residual momentum of the
 electron--positron pair. Neither can be engineered away, although the second
 translates into a positional error that scales with the diameter of the
-detector ring and is therefore smaller in compact systems. The detector terms are more tractable. In pixelated arrays, the size of the
+detector ring and is therefore smaller in compact systems. The detector terms are more tractable. In pixelated arrays \ref{fig:cristales}, the size of the
 individual element fixes the finest scale at which an interaction can be
 localised; shrinking it improves resolution, but the inter-crystal
 reflectors then occupy a growing fraction of the detector volume, and the
@@ -1582,11 +1582,10 @@ light sharing induces among its neighbours.
 % Hidalgo-Torres, sin comparar cifras -no son comparables- y llevandolo hacia
 % la ventaja del monolitico, como pediste.
 That last point is what connects this work with the other deep learning studies
-on this same detector. Both estimate the interaction position from the 61
-channels, one on simulated data \cite{jimenez2025} and one on measured
-\cite{hidalgo2022, hidalgo-torres_predicting_2020}. Ours does not compete with
-them: it repairs the 61-channel vector that they take as input, and the two are
-consecutive stages of the same chain. What they have in common is more
+on this same detector \cite{jimenez2025, hidalgo-torres_predicting_2020}, both
+of which estimate the interaction position from the 61 channels. Ours does not
+compete with them: it repairs the 61-channel vector that they take as input, and
+the two are consecutive stages of the same chain. What they have in common is more
 interesting than what separates them. All three exploit the fact that in a
 monolithic crystal the light of one event reaches many sensors, so the array
 carries more information than the number of channels suggests --- position
