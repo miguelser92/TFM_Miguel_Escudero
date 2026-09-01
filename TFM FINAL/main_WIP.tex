@@ -684,9 +684,9 @@ quadratically for small residuals and linearly for large ones,
 with $e = \hat{y}_{c} - y_{c}$ and $\delta = 0.1$. The motivation for testing it
 is that the targets contain legitimate extreme values, since a suppressed
 channel that was the brightest of its event has a target above unity, and a
-quadratic penalty weights those cases heavily. In practice the MSE gave the
-lower bias, which is the property we were unwilling to trade, so it is the loss
-used throughout.
+quadratic penalty weights those cases heavily. Neither improved on the MSE,
+which gave the lower bias, and that is the property we were unwilling to trade,
+so the MSE is the loss used throughout.
 
 We also tested two physics-informed variants, one penalising the displacement
 of the reconstructed position and one penalising the shift of the energy
@@ -1441,13 +1441,34 @@ Two properties of the approach matter as much as those numbers. The supervision
 is generated from healthy modules, so no detector with a genuinely dead sensor
 is needed to train, and the correction is applied before the centre of gravity
 is computed, so it returns a complete 61-channel vector that any downstream
-stage consumes unchanged.
-
+stage consumes unchanged. Fig.~\ref{fig:bad-real} shows the method applied to a
+module that arrived with a defect, the only case in this work where the fault is
+not one we injected and therefore the only one for which no error can be quoted.
+% Modulo real defectuoso. Version de zoom puro (ventana de 9 mm centrada en el
+% canal): a una columna el hexagono entero se convierte en textura y el efecto,
+% que es local, no se resuelve.
+%
+% Extension .png explicita A PROPOSITO: existe tambien el .pdf y LaTeX lo
+% prefiere, pero los flood maps en PDF salen con lineas blancas (ya paso con
+% floodmap). Con la extension puesta no hay ambiguedad.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{bad_real_d005z.png}
+\caption{A module that arrived with a defect, before and after imputation, over
+a 9\,mm window centred on the affected sensor and with a shared colour scale.
+The circled channel collects 30\,\% of the charge a healthy module collects at
+the same position, so it is degraded rather than dead and is treated as lost and
+replaced by the prediction. The correction stays local: it moves the
+reconstructed position by 0.32\,mm within 4\,mm of the channel and by
+0.003\,mm elsewhere.}
+\label{fig:bad-real}
+\end{figure}
 \subsection{Why a Small Network Suffices}
 
 The result that most constrains the interpretation is that a graph network of
-\num{38305} parameters matches or exceeds every alternative we tried, including
-a graph transformer with a hundred times more parameters. This is not evidence
+\num{38305} parameters matches every alternative we tried, including a graph
+transformer with a hundred times more parameters, and is beaten only by
+averaging three models at three times the cost. This is not evidence
 that attention mechanisms are ineffective in general; it is evidence about the
 problem. The information that determines the charge of a missing channel is
 concentrated in its immediate surroundings, and once a model has access to it,
