@@ -1640,37 +1640,20 @@ historically why monolithic designs were set aside, and it is exactly what a
 learned model is good at. The results reported here suggest that this is also
 where their remaining margin lies.
 
-% Limitations y Future Work van juntas a proposito: cada limite y la linea que
-% lo ataca son el mismo tema, y separarlas obligaba al lector a buscar en dos
-% sitios que hacer con cada pega. Fundirlas es ademas lo que permite recortar,
-% porque tres de los pares decian lo mismo dos veces.
-\subsection{Limitations and Future Work}
-\label{sec:disc-future}
+\subsection{Limitations}
 
-Four limitations bound what the preceding results support, beyond the two
-properties of the data discussed in Section~\ref{sec:disc-limits}. Each of them
-points to the work that would lift it.
+Three limitations bound what the preceding results support, beyond the two
+properties of the data discussed in Section~\ref{sec:discussion}.
 
 The test partition contains five modules. Given the variability between
 detectors, that places the standard error of any absolute figure at
 approximately 3.5 points, which is why we report cross-validated values rather
 than the result of a single partition.
 
-No energy calibration was applied. With the per-channel gains known, the charge
-of every module would live on a common scale, the spectral metric could be
-reported in keV instead of as a conservation ratio, and the spread between
-detectors could be attributed rather than merely measured. A complementary
-route is a controlled simulation of this same geometry, where the response of
-each sensor is set rather than inferred: it would allow the synthetic fault to
-be validated against a known reference.
-
 The simulated fault is a total suppression. Real degradation is often partial:
 a channel that keeps part of its response, or that drifts with temperature. The
-method has not been evaluated in that regime, and it is not obvious that a model
-trained on complete failures transfers to it. Extending the training masks to
-channels that keep part of their response would cover the failure mode that the
-current model does not see, and that the annotation campaign suggests is the
-more common one in practice.
+method has not been evaluated in that regime, and it is not obvious that a
+model trained on complete failures transfers to it.
 
 %v.2.2 Si que sabemos, es por la variabilidad de los datos reales, no son simulaciones,
 % hay datos que tienen menos info sobre un canal por azar, porque ese canal puede tener
@@ -1690,16 +1673,45 @@ acquisition than to the robustness of the model. Separating the two would
 require data in which the per-channel response is known or controlled, which
 real flood acquisitions do not provide.
 
-Two further directions do not follow from a limitation but from what the method
-is for. The first is the 62 modules with genuine defects, of which 18 are
-annotated so far. They cannot give a quantitative error, for the reason given
-above, but they can answer a question the synthetic experiments cannot: whether
-an imputation trained on injected faults produces flood maps that an expert
-accepts as repaired. The second is that everything here is measured on single
-detectors, while the quantity that matters clinically is the resolution of the
-reconstructed image. Propagating imputed events through a full reconstruction,
-and quantifying what a repaired module contributes to a ring of them, is the
-step that would turn a per-detector correction into a system-level result.
+%v2.2 comentar lo que te digo arriba aqui mas extenso, no ser tremendista si no decir que
+% hemos sentado unas bases en este campo y que estas son las lineas futuras. Aunque ahora
+% que lo pienso esto queda mejor en la conclusion.
+% [Checked] Ampliada y en tono de lineas abiertas, no de deficiencias. El "hemos
+% sentado unas bases" NO se dice aqui a proposito: si va tambien en Conclusions
+% suena a autobombo repetido. Lo dejo para que lo digas tu una sola vez alli.
+\subsection{Future Work}
+
+Four directions follow from the above, and the first two address the two
+limits identified in Section~\ref{sec:discussion} rather than any shortcoming of
+the network.
+
+A calibrated acquisition would separate what belongs to the method from what
+belongs to the hardware. With per-channel gains known, the charge of every
+module would live on a common scale, the spectral metric could be reported in
+keV instead of as a conservation ratio, and the spread between detectors could
+be attributed rather than merely measured. A complementary route is a
+controlled simulation of this same geometry, where the response of each sensor
+is set rather than inferred: it would make the worst-channel behaviour
+analysable, and it would allow the synthetic fault to be validated against a
+known reference.
+
+The second is the 62 modules with genuine defects, of which 18 are annotated so
+far. They cannot give a quantitative error, for the reason given above, but
+they can answer a question the synthetic experiments cannot: whether an
+imputation trained on injected faults produces flood maps that an expert
+accepts as repaired.
+
+The third is partial degradation. Extending the training masks to channels that
+keep part of their response, rather than none of it, would cover the failure
+mode that the current model does not see and that the annotation campaign
+suggests is the more common one in practice.
+
+The fourth concerns what the imputation is for. Everything here is measured on
+single detectors, and the quantity that matters clinically is the resolution of
+the reconstructed image. Propagating imputed events through a full
+reconstruction, and quantifying what a repaired module contributes to a ring of
+them, is the step that would turn a per-detector correction into a
+system-level result.
 
 
 % ---------------------------------------------------------------------
