@@ -112,8 +112,12 @@
 \vfill
 \color{black}
 
-\fbox{%
-\begin{minipage}{\linewidth}
+% \noindent para que el marco arranque en el margen, como la caja de Creative
+% Commons de abajo, que si lo lleva. Y la minipage se encoge lo que ocupan el
+% marco y su separacion (\fboxsep a cada lado, \fboxrule de grosor), porque si
+% no la caja mide \linewidth MAS todo eso y se sale por la derecha.
+\noindent\fbox{%
+\begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}
   \textbf{AVOID PLAGIARISM}\\
   \footnotesize{The University uses the \textbf{Turnitin Feedback Studio} for the
   delivery of student work. This program compares the originality of the work
