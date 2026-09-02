@@ -1784,123 +1784,68 @@ network with the geometry of the detector built into it is enough to reach it.
 % ---------------------------------------------------------------------
 % DECLARACION DE USO DE IA GENERATIVA
 % ---------------------------------------------------------------------
-% Sigue la plantilla oficial TFM_declaracion_uso_IAG_en_2026.docx, con sus
-% tres partes. A una columna, que es un formulario y a dos se lee fatal.
+% Plantilla oficial TFM_declaracion_uso_IAG_en_2026.docx, sus tres partes.
+% A una columna, que es un formulario.
 %
-% REVISALO ANTES DE FIRMAR: es TU declaracion, no la mia. Hay un punto que
-% solo puedes contestar tu, marcado con un comentario mas abajo.
+% REVISALA ANTES DE FIRMAR: es tu declaracion. Hay un punto de la Parte 1
+% que solo puedes contestar tu, marcado abajo.
 % ---------------------------------------------------------------------
 \onecolumn
 \section*{Declaration of Use of Generative Artificial Intelligence}
-\addcontentsline{toc}{section}{Declaration of Use of Generative AI}
 
 \noindent\textbf{I have used Generative AI in my TFM: YES.}
 
-\subsection*{Part 1. Reflection on legal, ethical and responsible behaviour}
+\subsection*{Part 1. Legal, ethical and responsible behaviour}
 
-\textbf{Confidential data.} I have not submitted confidential data to the AI
-tool. The acquisitions used in this work are experimental data from a detector
-prototype under development by the research group. They were stored and
-processed locally on my own machine, and no raw data file was uploaded to any
-AI service. What appeared in the interaction were aggregate metrics and figures
-derived from them by code executed locally.
-% OJO: confirma este punto con tu tutor. Los datos son del prototipo del grupo
-% y estan sin publicar. Si el considera que eso cuenta como dato confidencial,
-% hay que marcar "YES, con autorizacion" y decir de quien.
+\textbf{Confidential data: NO.} The acquisitions used in this work were stored
+and processed locally on my own machine, and no raw data file was uploaded to
+any AI service.
+% OJO: confirmalo con tu tutor. Los datos son del prototipo del grupo y estan
+% sin publicar. Si el considera que eso es dato confidencial, hay que marcar
+% "YES, con autorizacion" y decir de quien.
 
-\textbf{Copyrighted material.} I have submitted excerpts of copyrighted works
-for research purposes, which falls within the exceptions permitted by law.
-Specifically, passages from master's theses deposited in the institutional
-repository of this University and from published articles cited in this work,
-used to discuss their methodology and to position the present work with respect
-to them.
+\textbf{Copyrighted material: YES,} within the exceptions permitted by law. I
+used excerpts of master's theses deposited in the institutional repository of
+this University and of published articles cited here, for research purposes.
 
-\textbf{Personal data.} I have not submitted personal data.
+\textbf{Personal data: NO.}
 
-\textbf{Terms of use and ethical principles.} My use of the tool has respected
-its terms of use and the ethical principles required. It has not been oriented
-towards producing an impression contrary to the reality of the results
-obtained, nor towards supplanting my own work. Every numerical result reported
-in this thesis comes from experiments executed by me on my own hardware, and
-each figure quoted in the text was traced back to the output file of the
-experiment that produced it before being written.
+\textbf{Terms of use and ethical principles: YES.} The tool has not been used to
+produce an impression contrary to the results obtained, nor to supplant my own
+work. Every result reported in this thesis comes from experiments executed by me
+on my own hardware.
 
 \subsection*{Part 2. Declaration of technical use}
 
 I declare that I have made use of the Generative AI system \textbf{Claude
-(Anthropic), model Claude Opus 5}, both through its conversational interface
-and through the Claude Code development environment, for the following:
+(Anthropic), model Claude Opus 5} for:
 
-\vspace{0.5em}
-\noindent\textbf{Documentation and drafting}
+\begin{itemize}\itemsep3pt \parskip0pt
+\item \textbf{Translation.} Turning passages I had drafted in Spanish into
+English.
 
-\begin{itemize}\itemsep2pt \parskip0pt
-\item \emph{Supporting reflection on the development of the work.} I asked for
-alternative structures for the Discussion chapter, and for an assessment of
-whether a given experimental result was solid enough to be presented as a
-conclusion or should be reported descriptively.
+\item \textbf{Grammar and style of the writing.} Correcting and improving the
+wording of paragraphs already drafted by me, and shortening them where they
+were too long.
 
-\item \emph{Revision or rewriting of previously drafted paragraphs.} I asked
-for the concluding section to be shortened without losing content, and for a
-paragraph to be rewritten because it repeated, word for word, a sentence
-already used earlier in the document.
+\item \textbf{Explanation of concepts.} Clarifying ideas I needed in order to
+write accurately, such as what an energy calibration consists of, or how a
+cosine learning-rate schedule behaves during training.
 
-\item \emph{Search for answers to specific questions.} The questions were aimed
-at clarifying concepts I needed in order to write accurately, such as what an
-energy calibration consists of in this context, or how a cosine learning-rate
-schedule behaves during training.
-\end{itemize}
-
-\vspace{0.5em}
-\noindent\textbf{Development of specific content}
-
-\begin{itemize}\itemsep2pt \parskip0pt
-\item \emph{Assistance in the development of lines of code.} I asked for help
-writing the evaluation scripts that compute the recovery metrics reported here,
-and the scripts used to chain the training batches that ran overnight.
-
-\item \emph{Optimisation processes.} I asked for help diagnosing and correcting
-errors, among them a compilation failure in which the bibliography processor
-reported a missing command while the auxiliary file was in fact correct, and an
-error in the experimental protocol by which three supposedly independent
-replicas were being trained on identical data.
-
-\item \emph{Data processing: analysis and cross-checking.} I asked for help
-estimating the uncertainty of the reported figures, separating the variability
-between training runs from the variability between data partitions, and for
-verification that a claim I intended to make was actually supported by the
-measurements available.
-
-\item \emph{Generation of figures.} The figures in this document are plots
-produced by Python scripts from the output of my own experiments. The AI
-assisted in writing those scripts; no figure content was generated by AI.
+\item \textbf{Assistance with code and debugging.} Help in writing and
+correcting the evaluation and plotting scripts, and in diagnosing errors during
+development.
 \end{itemize}
 
 \subsection*{Part 3. Reflection on utility}
 
-The clearest strength I found was speed on tasks where I already knew what I
-wanted but not how to put it into words or into code: drafting and
-restructuring chapters, and writing the evaluation and plotting scripts. It was
-also useful as a critic. Asking it to argue against a result I believed made me
-check things I would otherwise have taken for granted, and more than one claim
-in this document was weakened, or dropped, because that check did not hold.
-
-The clearest weakness is that it is confidently wrong. On several occasions
-during this work it produced statements that looked reasonable and were not: it
-described a procedure for measuring a quantity that did not exist anywhere in
-my code, it explained the effect of a random seed by reasoning about the code
-instead of measuring it, and it compared a model against a reference that was
-bound to fail by construction, which made an improvement look far larger than
-it was. In every case the error was caught by going back to the data or to the
-code, never by asking the tool again.
-
-That is the lesson I take from the experience, and it shaped how I worked. The
-tool is useful in proportion to how well the user can verify what it returns:
-it accelerated the parts of this work I was able to check, and it would have
-introduced errors into the parts I was not. For that reason I adopted the rule
-that no figure appears in this document unless it was traced back to the file
-produced by the experiment that generated it, and that the code, not a
-plausible explanation of the code, decides what the methods section says.
+Generative AI is a powerful tool for gathering information, explaining concepts
+quickly, going deeper into a subject and reaching complex information in a
+structured way. It is also very useful for improving figures with libraries such
+as Matplotlib, and for fixing bugs while developing code. It does, however, tend
+to mix concepts up, to make categorical claims too lightly, and to turn the
+context against you, affirming or denying earlier words or information in a way
+that cannot be controlled.
 
 
 \end{document}
